@@ -2,7 +2,7 @@
 
 Redis based block follower is an efficient way for multiple apps to stream the Steem Blockchain.
 
-If you have multiple applications that need to perform actions as operations occur, `meeseeker` will allow your apps to each perform actions for specific operations without each app having to streaming the entire blockchain.
+If you have multiple applications that need to perform actions as operations occur, `meeseeker` will allow your apps to each perform actions for specific operations without each app having to stream the entire blockchain.
 
 *In a nutshell:* The overarching intent here is to provide a "live view" of the blockchain, *not* store the entire blockchain.  Apps can attach to your redis source and ask, "What *just* happened?"
 
