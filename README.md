@@ -100,7 +100,7 @@ From the redis manual:
 
 See: https://redis.io/commands/scan
 
-Once you're sync has started, you can begin doing queries against redis, for example, in the `redis-cli`:
+Once your sync has started, you can begin doing queries against redis, for example, in the `redis-cli`:
 
 ```bash
 redis-cli --scan --pattern 'steem:*:vote'
