@@ -1,0 +1,48 @@
+#!/usr/bin/env ruby
+
+require 'rake'
+require 'pp'
+require 'meeseeker'
+
+gem_dir = File.expand_path("..", File.dirname(__FILE__))
+$LOAD_PATH.unshift gem_dir
+
+pwd = Dir.pwd
+Dir.chdir(gem_dir)
+Rake.application.init
+Rake.application.load_rakefile
+Dir.chdir(pwd)
+
+puts "meeseeker-#{Meeseeker::VERSION}"
+filename = __FILE__.split('/').last
+
+case ARGV[0]
+when 'console' then Rake::Task['console'].invoke
+when 'sync'
+  backoff = 0.01
+  max_backoff = 30
+  
+  loop do; begin
+    Rake::Task['sync'].invoke(ARGV[1])
+  rescue Steem::BaseError => e
+    puts "Error: #{e.inspect}"
+    backoff = [backoff, max_backoff].min
+    sleep backoff *= 2
+    puts "Retrying ..."
+    Rake::Task['sync'].reenable
+  end; end
+when 'find' then Rake::Task['find'].invoke(*ARGV[1..-1])
+when 'reset' then Rake::Task['reset'].invoke
+else
+  puts "\nBegin/resume sync:"
+  puts "\t#{filename} sync\n\n"
+  puts "Start in the ruby console:"
+  puts "\t#{filename} console\n\n"
+  puts 'Find block or transaction:'
+  puts "\t#{filename} find block 3044538"
+  puts "\t#{filename} find trx 983c5e5c6aef52f1647d952a18771f76b885e6de\n\n"
+  puts 'Clear all keys:'
+  puts "\t#{filename} reset\n\n"
+  puts "Note, using find and reset is not intended for routine operations.  It is intended for analysis only."
+  puts "See: https://github.com/inertia186/meeseeker#usage"
+end
