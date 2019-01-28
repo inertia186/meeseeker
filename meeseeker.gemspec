@@ -11,8 +11,8 @@ Gem::Specification.new do |s|
   s.description = 'If you have multiple applications that need to perform actions as operations occur, `meeseeker` will allow your apps to each perform actions for specific operations without each app having to streaming the entire blockchain.'
   s.authors = ['Anthony Martin']
   s.email = ['meeseeker@martin-studio.com,']
-  s.files = Dir['**/*']
-  s.test_files = Dir['{test}/**/*']
+  s.files = Dir['bin/**/*', 'lib/**/*', 'Gemfile', 'LICENSE', 'Rakefile', 'README.md', 'meeseeker.gemspec']
+  s.test_files = Dir['test/**/*']
   s.executables = Dir['bin/*'].map{ |f| File.basename(f) }
   s.homepage = 'https://rubygems.org/gems/meeseeker'
   s.metadata = { 'source_code_uri' => 'https://github.com/inertia186/meeseeker' }
