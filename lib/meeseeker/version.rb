@@ -1,3 +1,3 @@
 module Meeseeker
-  VERSION = '0.0.1'
+  VERSION = '0.0.2pre1'
 end

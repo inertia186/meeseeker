@@ -41,6 +41,7 @@ module Meeseeker
       
       last_key_prefix = nil
       trx_index = 0
+      current_block_num = nil
       
       stream.operations(options) do |op, trx_id, block_num|
         current_key_prefix = "steem:#{block_num}:#{trx_id}"
@@ -48,6 +49,10 @@ module Meeseeker
         if current_key_prefix == last_key_prefix
           trx_index += 1
         else
+          if !!last_key_prefix
+            n, b, t = last_key_prefix.split(':')
+            redis.publish('steem:transaction', {block_num: b.to_i, trx_id: t}.to_json)
+          end
           last_key_prefix = "steem:#{block_num}:#{trx_id}"
           trx_index = 0
         end
@@ -57,7 +62,14 @@ module Meeseeker
         puts key
         redis.set(key, op.to_json)
         redis.expire(key, Meeseeker.expire_keys)
-        redis.set(LAST_BLOCK_NUM_KEY, block_num)
+        
+        if current_block_num != block_num
+          redis.set(LAST_BLOCK_NUM_KEY, block_num)
+          redis.publish('steem:block', {block_num: block_num}.to_json)
+          current_block_num = block_num
+        end
+        
+        redis.publish("steem:op:#{op_type}", {key: key}.to_json)
       end
     end
   end
