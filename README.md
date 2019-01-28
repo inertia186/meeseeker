@@ -102,7 +102,7 @@ Channels available for `meeseeker`:
 * `steem:op:comment`
 * `steem:op:comment_options`
 
-In addition to these, all operation types can be subscribed to as channels, including virtual operations, if enabled.
+In addition to these, [all operation types](https://developers.steem.io/apidefinitions/broadcast-ops) can be subscribed to as channels, including virtual operations, if enabled.
 
 For example, from `redis-cli`, if we wanted to stream block numbers:
 
