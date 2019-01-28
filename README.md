@@ -90,6 +90,60 @@ MEESEEKER_EXPIRE_KEYS=10 meeseeker sync
 
 When `meeseeker sync` starts for the first time, it initializes from the last irreversible block number.  If the sync is interrupted, it will resume from the last block sync'd unless that block is older than `MEESEEKER_EXPIRE_KEYS` in which case it will skip to the last irreversible block number.
 
+#### Using `SUBSCRIBE`
+
+For `redis-cli`, please see: https://redis.io/topics/pubsub
+
+Channels available for `meeseeker`:
+
+* `steem:block`
+* `steem:transaction`
+* `steem:op:vote`
+* `steem:op:comment`
+* `steem:op:comment_options`
+
+In addition to these, all operation types can be subscribed to as channels, including virtual operations, if enabled.
+
+For example, from `redis-cli`, if we wanted to stream block numbers:
+
+```bash
+$ redis-cli
+127.0.0.1:6379> subscribe steem:block
+Reading messages... (press Ctrl-C to quit)
+1) "subscribe"
+2) "steem:block"
+3) (integer) 1
+1) "message"
+2) "steem:block"
+3) "{\"block_num\":29844374}"
+1) "message"
+2) "steem:block"
+3) "{\"block_num\":29844375}"
+1) "message"
+2) "steem:block"
+3) "{\"block_num\":29844376}"
+```
+
+A `ruby` application can subscribe to a channel as well, using the `redis` gem:
+
+```ruby
+require 'redis'
+
+url = 'redis://127.0.0.1:6379/0'
+ctx = Redis.new(url: url)
+
+Redis.new(url: url).subscribe('steem:op:comment') do |on|
+  on.message do |channel, message|
+    payload = JSON[message]
+    comment = JSON[ctx.get(payload['key'])]
+    
+    puts comment['value']
+  end
+end
+```
+
+Many other clients are supported: https://redis.io/clients
+
 #### Using `SCAN`
 
 From the redis manual:
