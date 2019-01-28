@@ -12,7 +12,7 @@ module Meeseeker
         
         database_api.get_dynamic_global_properties do |dgpo|
           block_num = case Meeseeker.stream_mode
-          when :head then dgpo.last_irreversible_block_num
+          when :head then dgpo.head_block_number
           when :irreversible then dgpo.last_irreversible_block_num
           else; abort "Unknown stream mode: #{Meeseeker.stream_mode}"
           end
