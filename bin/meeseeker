@@ -24,7 +24,7 @@ when 'sync'
   
   loop do; begin
     Rake::Task['sync'].invoke(ARGV[1])
-  rescue Steem::BaseError => e
+  rescue => e
     puts "Error: #{e.inspect}"
     backoff = [backoff, max_backoff].min
     sleep backoff *= 2

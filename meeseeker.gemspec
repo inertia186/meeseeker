@@ -11,7 +11,7 @@ Gem::Specification.new do |s|
   s.description = 'If you have multiple applications that need to perform actions as operations occur, `meeseeker` will allow your apps to each perform actions for specific operations without each app having to streaming the entire blockchain.'
   s.authors = ['Anthony Martin']
   s.email = ['meeseeker@martin-studio.com,']
-  s.files = Dir['bin/**/*', 'lib/**/*', 'Gemfile', 'LICENSE', 'Rakefile', 'README.md', 'meeseeker.gemspec']
+  s.files = Dir['bin/**/*', 'lib/**/*', 'test/**/*', 'Gemfile', 'LICENSE', 'Rakefile', 'README.md', 'meeseeker.gemspec']
   s.test_files = Dir['test/**/*']
   s.executables = Dir['bin/*'].map{ |f| File.basename(f) }
   s.homepage = 'https://rubygems.org/gems/meeseeker'
@@ -21,6 +21,11 @@ Gem::Specification.new do |s|
 
   # Ruby Make (interprets the Rakefile DSL).
   s.add_development_dependency 'rake', '~> 12.3', '>= 12.3.1'
+  s.add_development_dependency 'minitest', '~> 5.10', '>= 5.10.3'
+  s.add_development_dependency 'minitest-line', '~> 0.6', '>= 0.6.4'
+  s.add_development_dependency 'minitest-proveit', '~> 1.0', '>= 1.0.0'
+  s.add_development_dependency 'simplecov', '~> 0.15', '>= 0.15.1'
+  s.add_development_dependency 'pry', '~> 0.11', '>= 0.11.3'
 
   s.add_dependency 'redis', '~> 4.1', '>= 4.1.0'
   s.add_dependency 'steem-mechanize', '~> 0.0', '>= 0.0.5'

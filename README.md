@@ -80,10 +80,23 @@ To ignore virtual operations (useful if the node doesn't enable `get_ops_in_bloc
 MEESEEKER_INCLUDE_VIRTUAL=false meeseeker sync
 ```
 
+Normally, block headers are added to the `steem:block` channel.  This requires one additional API call for each block.  If you don't need block headers, you can configure the `steem:block` channel to only publish with the `block_num`:
+
+```bash
+MEESEEKER_INCLUDE_BLOCK_HEADER=false meeseeker sync
+```
+
 Normally, keys stay on redis for 24 hours.  If you want to change this behavior, use `MEESEEKER_EXPIRE_KEYS` and specify the new value in seconds, for example:
 
 ```bash
 MEESEEKER_EXPIRE_KEYS=10 meeseeker sync
+```
+
+If you never want the keys to expire (not recommended), set
+`MEESEEKER_EXPIRE_KEYS` to -1:
+
+```bash
+MEESEEKER_EXPIRE_KEYS=-1 meeseeker sync
 ```
 
 ### Usage
@@ -102,8 +115,11 @@ Channels available for `meeseeker`:
 * `steem:op:comment`
 * `steem:op:comment_options`
 * `steem:op:whatever` (replace "whatever" with the op you want)
+* `steem:op:custom_json:whatever` (if enabled, replace "whatever" with the `custom_json.id` you want)
 
-As mentioned in the last `whatever` example, [all operation types](https://developers.steem.io/apidefinitions/broadcast-ops) can be subscribed to as channels, including virtual operations, if enabled.
+As mentioned in the first `whatever` example, for ops, [all operation types](https://developers.steem.io/apidefinitions/broadcast-ops) can be subscribed to as channels, including virtual operations, if enabled.
+
+In the second `whatever` example, for `custom_json.id`, if you want to subscribe to the `follow` channel, use `steem:op:custom_json:follow`.  Or if you want to subscribe to the `sm_team_reveal` channel, use `steem:op:custom_json:follow`.  The `custom_json.id` channels are not enabled by default.  To enable it, set the `MEESEEKER_PUBLISH_OP_CUSTOM_ID` to `true` (see example below).
 
 For example, from `redis-cli`, if we wanted to stream block numbers:
 
@@ -116,13 +132,45 @@ Reading messages... (press Ctrl-C to quit)
 3) (integer) 1
 1) "message"
 2) "steem:block"
-3) "{\"block_num\":29844374}"
+3) "{\"block_num\":29861068,\"previous\":\"01c7a4cb4424b4dc0cb0cc72fd36b1644f8aeba5\",\"timestamp\":\"2019-01-28T20:55:03\",\"witness\":\"ausbitbank\",\"transaction_merkle_root\":\"a318bb82625bd78af8d8b506ccd4f53116372c8e\",\"extensions\":[]}"
 1) "message"
 2) "steem:block"
-3) "{\"block_num\":29844375}"
+3) "{\"block_num\":29861069,\"previous\":\"01c7a4cc1bed060876cab57476846a91568a9f8a\",\"timestamp\":\"2019-01-28T20:55:06\",\"witness\":\"followbtcnews\",\"transaction_merkle_root\":\"834e05d40b9666e5ef50deb9f368c63070c0105b\",\"extensions\":[]}"
 1) "message"
 2) "steem:block"
-3) "{\"block_num\":29844376}"
+3) "{\"block_num\":29861070,\"previous\":\"01c7a4cd3bbf872895654765faa4409a8e770e91\",\"timestamp\":\"2019-01-28T20:55:09\",\"witness\":\"timcliff\",\"transaction_merkle_root\":\"b2366ce9134d627e00423b28d33cc57f1e6e453f\",\"extensions\":[]}"
+```
+
+In addition to general op channels, there's an additional channel for `custom_json.id`.  This option must be enabled:
+
+```bash
+MEESEEKER_PUBLISH_OP_CUSTOM_ID=true meeseeker sync
+```
+
+Which allows subscription to specific `id` patterns:
+
+```
+$ redis-cli
+127.0.0.1:6379> subscribe steem:op:custom_json:sm_team_reveal
+Reading messages... (press Ctrl-C to quit)
+1) "subscribe"
+2) "steem:op:custom_json:sm_team_reveal"
+3) (integer) 1
+1) "message"
+2) "steem:op:custom_json:sm_team_reveal"
+3) "{\"key\":\"steem:29890790:bcfa68d9be10b3587d81039b85fd0536ddeddffb:0:custom_json\"}"
+1) "message"
+2) "steem:op:custom_json:sm_team_reveal"
+3) "{\"key\":\"steem:29890792:3f3b921ec6706bcd259f5cc6ac922dc59bbe2de5:0:custom_json\"}"
+1) "message"
+2) "steem:op:custom_json:sm_team_reveal"
+3) "{\"key\":\"steem:29890792:4ceca16dd114b1851140086a82a5fb3a6eb6ec42:0:custom_json\"}"
+1) "message"
+2) "steem:op:custom_json:sm_team_reveal"
+3) "{\"key\":\"steem:29890792:00930eff76b3f0af8ed7215e88cf351cc671490b:0:custom_json\"}"
+1) "message"
+2) "steem:op:custom_json:sm_team_reveal"
+3) "{\"key\":\"steem:29890799:01483bd252ccadb05f546051bb20a4ba9afea243:0:custom_json\"}"
 ```
 
 A `ruby` application can subscribe to a channel as well, using the `redis` gem:
@@ -154,6 +202,10 @@ From the redis manual:
 > However while blocking commands like SMEMBERS are able to provide all the elements that are part of a Set in a given moment, The SCAN family of commands only offer limited guarantees about the returned elements since the collection that we incrementally iterate can change during the iteration process.
 
 See: https://redis.io/commands/scan
+
+Keep in mind that `SCAN` requires pagination to get a complete result.  Redis implements pagination using a cursor based iterator.
+
+See: https://redis.io/commands/scan#scan-basic-usage
 
 Once your sync has started, you can begin doing queries against redis, for example, in the `redis-cli`:
 
