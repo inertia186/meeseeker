@@ -276,6 +276,26 @@ redis-cli --scan --pattern 'steem:*:31ecb9c85e9eabd7ca2460fdb4f3ce4a7ca6ec32:*'
 
 See some of my previous Ruby How To posts in: [#radiator](https://steemit.com/created/radiator) [#ruby](https://steemit.com/created/ruby)
 
+### Docker
+
+This will launch meeseeker in a docker container, so you can immediately attach to it on port 6380.
+
+```bash
+docker run -d -p 6380:6379 inertia/meeseeker:latest
+redis-cli -p 6380
+```
+
+You can also pass any of the environment variables meeseeker accepts.  For example, this will launch meeseeker with `custom_json.id` channels enabled, but only keeps ops around for 5 minutes:
+
+```bash
+docker run \
+  --env MEESEEKER_PUBLISH_OP_CUSTOM_ID=true \
+  --env MEESEEKER_EXPIRE_KEYS=300 \
+  -d -p 6380:6379 inertia/meeseeker:latest
+```
+
+Also see: https://hub.docker.com/r/inertia/meeseeker/
+
 ## Get in touch!
 
 If you're using Radiator, I'd love to hear from you.  Drop me a line and tell me what you think!  I'm @inertia on STEEM.
