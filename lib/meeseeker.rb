@@ -3,6 +3,7 @@ require 'steem'
 
 require 'meeseeker/version'
 require 'meeseeker/block_follower_job'
+require 'meeseeker/witness_schedule_job'
 
 module Meeseeker
   LAST_BLOCK_NUM_KEY = 'steem:meeseeker:last_block_num'

@@ -107,7 +107,9 @@ When `meeseeker sync` starts for the first time, it initializes from the last ir
 
 For `redis-cli`, please see: https://redis.io/topics/pubsub
 
-Channels available for `meeseeker`:
+##### Sync
+
+When running `meeseeker sync`, the following channels are available:
 
 * `steem:block`
 * `steem:transaction`
@@ -192,6 +194,24 @@ end
 ```
 
 Many other clients are supported: https://redis.io/clients
+
+##### Witness Schedule
+
+When running `meeseeker witness:schedule`, the `steem:witness:schedule` channel is available.  This is offered as a separate command because most applications don't need to worry about this level of blockchain logistics.
+
+For example, from `redis-cli`, if we wanted to subscribe to the witness schedule:
+
+```
+$ redis-cli
+127.0.0.1:6379> subscribe steem:witness:schedule
+Reading messages... (press Ctrl-C to quit)
+1) "subscribe"
+2) "steem:witness:schedule"
+3) (integer) 1
+1) "message"
+2) "steem:witness:schedule"
+3) "{\"id\":0,\"current_virtual_time\":\"415293532210075480213212125\",\"next_shuffle_block_num\":30035208,\"current_shuffled_witnesses\":[\"thecryptodrive\",\"timcliff\",\"utopian-io\",\"themarkymark\",\"aggroed\",\"smooth.witness\",\"someguy123\",\"gtg\",\"followbtcnews\",\"yabapmatt\",\"therealwolf\",\"ausbitbank\",\"curie\",\"clayop\",\"drakos\",\"blocktrades\",\"good-karma\",\"roelandp\",\"lukestokes.mhth\",\"liondani\",\"anyx\"],\"num_scheduled_witnesses\":21,\"elected_weight\":1,\"timeshare_weight\":5,\"miner_weight\":1,\"witness_pay_normalization_factor\":25,\"median_props\":{\"account_creation_fee\":{\"amount\":\"3000\",\"precision\":3,\"nai\":\"@@000000021\"},\"maximum_block_size\":65536,\"sbd_interest_rate\":0,\"account_subsidy_budget\":797,\"account_subsidy_decay\":347321},\"majority_version\":\"0.20.8\",\"max_voted_witnesses\":20,\"max_miner_witnesses\":0,\"max_runner_witnesses\":1,\"hardfork_required_witnesses\":17,\"account_subsidy_rd\":{\"resource_unit\":10000,\"budget_per_time_unit\":797,\"pool_eq\":157691079,\"max_pool_size\":157691079,\"decay_params\":{\"decay_per_time_unit\":347321,\"decay_per_time_unit_denom_shift\":36},\"min_decay\":0},\"account_subsidy_witness_rd\":{\"resource_unit\":10000,\"budget_per_time_unit\":996,\"pool_eq\":9384019,\"max_pool_size\":9384019,\"decay_params\":{\"decay_per_time_unit\":7293741,\"decay_per_time_unit_denom_shift\":36},\"min_decay\":257},\"min_witness_account_subsidy_decay\":0}"
+```
 
 #### Using `SCAN`
 

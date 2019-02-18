@@ -18,12 +18,12 @@ filename = __FILE__.split('/').last
 
 case ARGV[0]
 when 'console' then Rake::Task['console'].invoke
-when 'sync'
+when 'sync', 'witness:schedule'
   backoff = 0.01
   max_backoff = 30
   
   loop do; begin
-    Rake::Task['sync'].invoke(ARGV[1])
+    Rake::Task[ARGV[0]].invoke(ARGV[1])
   rescue => e
     puts "Error: #{e.inspect}"
     backoff = [backoff, max_backoff].min
@@ -36,6 +36,8 @@ when 'reset' then Rake::Task['reset'].invoke
 else
   puts "\nBegin/resume sync:"
   puts "\t#{filename} sync\n\n"
+  puts "Publish witness schedule:"
+  puts "\t#{filename} witness:schedule\n\n"
   puts "Start in the ruby console:"
   puts "\t#{filename} console\n\n"
   puts 'Find block or transaction:'

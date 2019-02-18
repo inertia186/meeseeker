@@ -2,6 +2,8 @@ require "bundler/gem_tasks"
 require "rake/testtask"
 require 'meeseeker'
 
+defined? Thread.report_on_exception and Thread.report_on_exception = true
+
 Rake::TestTask.new(:test) do |t|
   t.libs << 'test'
   t.libs << 'lib'
@@ -44,6 +46,14 @@ task(:sync, [:at_block_num] => [:check_schema]) do |t, args|
   job.perform(at_block_num: args[:at_block_num])
 end
 
+namespace :witness do
+  desc 'Publish the witness schedule every minute or so (steem:witness:schedule).'
+  task :schedule do
+    job = Meeseeker::WitnessScheduleJob.new
+    job.perform
+  end
+end
+
 task(:find, [:what, :key] => [:check_schema]) do |t, args|
   redis = Meeseeker.redis
   match = case args[:what].downcase.to_sym
@@ -77,8 +87,6 @@ end
 namespace :verify do
   desc 'Verifies transactions land where they should.'
   task :block_org, [:max_blocks] do |t, args|
-    defined? Thread.report_on_exception and Thread.report_on_exception = true
-    
     max_blocks = args[:max_blocks]
     node_url = ENV.fetch('MEESEEKER_NODE_URL', 'https://api.steemit.com')
     database_api = Steem::DatabaseApi.new(url: node_url)
@@ -200,6 +208,158 @@ namespace :verify do
         
         on.unsubscribe do |channel, subscriptions|
           puts "Unsubscribed from ##{channel} (subscriptions: #{subscriptions})"
+        end
+      end
+    end
+  end
+  
+  namespace :witness do
+    desc 'Verifies witnessses in the schedule produced a block.'
+    task :schedule, [:max_blocks] do |t, args|
+      max_blocks = args[:max_blocks]
+      node_url = ENV.fetch('MEESEEKER_NODE_URL', 'https://api.steemit.com')
+      database_api = Steem::DatabaseApi.new(url: node_url)
+      mode = ENV.fetch('MEESEEKER_STREAM_MODE', 'head').to_sym
+      until_block_num = if !!max_blocks
+        database_api.get_dynamic_global_properties do |dgpo|
+          raise 'Got empty dynamic_global_properties result.' if dgpo.nil?
+          
+          case mode
+          when :head then dgpo.head_block_number
+          when :irreversible then dgpo.last_irreversible_block_num
+          else; abort "Unknown block mode: #{mode}"
+          end
+        end + max_blocks.to_i
+      end
+      
+      Thread.new do
+        job = Meeseeker::WitnessScheduleJob.new
+        
+        loop do
+          begin
+            job.perform(mode: mode, until_block_num: until_block_num)
+          rescue => e
+            puts e.inspect
+            sleep 5
+          end
+          
+          break # success
+        end
+        
+        puts 'Background sync finished ...'
+      end
+    
+      begin
+        block_api = Steem::BlockApi.new(url: node_url)
+        schedule_channel = 'steem:witness:schedule'
+        redis_url = ENV.fetch('MEESEEKER_REDIS_URL', 'redis://127.0.0.1:6379/0')
+        subscription = Redis.new(url: redis_url)
+        ctx = Redis.new(url: redis_url)
+        timeout = (max_blocks).to_i * 3
+        
+        subscribe_mode, subscribe_args = if timeout > 0
+          [:subscribe_with_timeout, [timeout, [schedule_channel]]]
+        else
+          [:subscribe, [[schedule_channel]]]
+        end
+        
+        # Check if the redis context is still available right before we
+        # subscribe.
+        break unless subscription.ping == 'PONG'
+        
+        subscription.send(subscribe_mode, *subscribe_args) do |on|
+          on.subscribe do |channel, subscriptions|
+            puts "Subscribed to ##{channel} (subscriptions: #{subscriptions})"
+          end
+          
+          on.message do |channel, message|
+            payload = JSON[message]
+            next_shuffle_block_num = payload['next_shuffle_block_num']
+            current_shuffled_witnesses = payload['current_shuffled_witnesses']
+            num_witnesses = current_shuffled_witnesses.size
+            from_block_num = next_shuffle_block_num - num_witnesses + 1
+            to_block_num = from_block_num + num_witnesses - 1
+            block_range = from_block_num..to_block_num # typically 21 blocks
+            
+            if !!max_blocks
+              if block_range.include? until_block_num
+                # We're done trailing blocks.  Typically, this is used by unit
+                # tests so the test can halt.
+                
+                subscription.unsubscribe
+              end
+            end
+            
+            begin
+              # We write witnesses to this hash until all 21 produce blocks.
+              actual_witnesses = {}
+              tries = 0
+              
+              while actual_witnesses.size != num_witnesses
+                # Allow the immediate node to catch up in case it's behind by a
+                # block.
+                sleep 3
+                
+                # Typically, nodes will allow up to 50 block headers in one
+                # request, if backed by jussi.  We only need 21, so each
+                # request should only make a single response with the entire
+                # round.  Under normal circumstances, this call happens only
+                # once.  But if the there's additional p2p or cache latency,
+                # it might have missing headers.
+                
+                block_api.get_block_headers(block_range: block_range) do |header, block_num|
+                  unless !!header
+                    # Can happen when there's excess p2p latency and/or jussi
+                    # cache is under load.
+                    puts "Waiting for block header: #{block_num}"
+                    
+                    next
+                  end
+                  
+                  actual_witnesses[header.witness] = block_num
+                end
+                
+                break if (tries += 1) > 5
+              end
+              
+              # If there are multiple tries due to high p2p latency, even though
+              # we got all 21 block headers, seeing this message could be an
+              # early-warning of other problems on the blockchain.
+              
+              # If there's a missing block header, this will always show 5
+              # tries.
+              
+              puts "Tries: #{tries}" if tries > 1
+              
+              missing_witnesses = current_shuffled_witnesses - actual_witnesses.keys
+              extra_witnesses = actual_witnesses.keys - current_shuffled_witnesses
+              
+              if missing_witnesses.any? || extra_witnesses.any?
+                puts "Expected only these witness to produce a block in #{block_range}."
+                puts "Missing witnesses: #{missing_witnesses.join(', ')}"
+                puts "Extra witnesses: #{extra_witnesses.join(', ')}"
+                
+                puts "\nWitnesses and block numbers in range:"
+                actual_witnesses.sort_by{ |k, v| v }.each do |k, v|
+                  puts "#{v}: #{k}"
+                end
+                puts "Count: #{actual_witnesses.size}"
+                
+                # Non-zero exit to notify the shell caller that there's a
+                # problem.
+                
+                exit(-(missing_witnesses.size + extra_witnesses.size))
+              end
+            end
+            
+            # Perfect round.
+            
+            puts "Found all #{num_witnesses} expected witnesses in block range #{block_range}: √"
+          end
+          
+          on.unsubscribe do |channel, subscriptions|
+            puts "Unsubscribed from ##{channel} (subscriptions: #{subscriptions})"
+          end
         end
       end
     end
