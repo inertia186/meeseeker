@@ -90,20 +90,21 @@ namespace :verify do
     max_blocks = args[:max_blocks]
     node_url = ENV.fetch('MEESEEKER_NODE_URL', 'https://api.steemit.com')
     database_api = Steem::DatabaseApi.new(url: node_url)
-    until_block_num = nil
+    mode = ENV.fetch('MEESEEKER_STREAM_MODE', 'head').to_sym
+    until_block_num = if !!max_blocks
+      database_api.get_dynamic_global_properties do |dgpo|
+        raise 'Got empty dynamic_global_properties result.' if dgpo.nil?
+        
+        case mode
+        when :head then dgpo.head_block_number
+        when :irreversible then dgpo.last_irreversible_block_num
+        else; abort "Unknown block mode: #{mode}"
+        end
+      end + max_blocks.to_i
+    end
     
     Thread.new do
       job = Meeseeker::BlockFollowerJob.new
-      mode = ENV.fetch('MEESEEKER_STREAM_MODE', 'head').to_sym
-      until_block_num = if !!max_blocks
-        database_api.get_dynamic_global_properties do |dgpo|
-          case mode
-          when :head then dgpo.head_block_number
-          when :irreversible then dgpo.last_irreversible_block_num
-          else; abort "Unknown block mode: #{mode}"
-          end
-        end + max_blocks.to_i
-      end
       
       loop do
         begin
@@ -146,6 +147,9 @@ namespace :verify do
           
           if !!max_blocks
             if block_num >= until_block_num
+              # We're done trailing blocks.  Typically, this is used by unit
+              # tests so the test can halt.
+              
               subscription.unsubscribe
               next
             end
@@ -160,6 +164,8 @@ namespace :verify do
           end
           
           database_api.get_dynamic_global_properties do |dgpo|
+            raise 'Got empty dynamic_global_properties result.' if dgpo.nil?
+            
             (block_num - dgpo.last_irreversible_block_num).tap do |offset|
               # This will block all channel callbacks until the first known block
               # is irreversible.  After that, the offsets should mostly go
@@ -177,6 +183,8 @@ namespace :verify do
           expected_ids -= [Meeseeker::VIRTUAL_TRX_ID]
           
           actual_ids, actual_witness = block_api.get_block(block_num: block_num) do |result|
+            raise 'Got empty block result.' if result.nil? || result.block.nil?
+            
             block = result.block
             [block.transaction_ids, block.witness]
           end
