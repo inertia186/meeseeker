@@ -1,5 +1,7 @@
 module Meeseeker
   class BlockFollowerJob
+    MAX_VOP_RETRY = 3
+    
     def perform(options = {})
       block_api = Steem::BlockApi.new(url: Meeseeker.node_url)
       redis = Meeseeker.redis
@@ -116,12 +118,79 @@ module Meeseeker
       begin
         stream_options = {url: Meeseeker.node_url, mode: mode}
         options = options.merge(at_block_num: last_block_num)
+        condenser_api = nil
         
         Steem::Stream.new(stream_options).tap do |stream|
           puts "Stream begin: #{stream_options.to_json}; #{options.to_json}"
           
-          stream.operations(options) do |op, trx_id, block_num|
-            yield op, trx_id, block_num
+          # Prior to v0.0.4, we only streamed operations with stream.operations.
+          
+          # After v0.0.5, we stream blocks so that we can get block.timestamp,
+          # to embed it into op values.  This should also reduce streaming
+          # overhead since we no longer stream block_headers inder the hood.
+          
+          stream.blocks(options) do |block, block_num|
+            block.transactions.each_with_index do |transaction, index|
+              transaction.operations.each do |op|
+                op = op.merge(timestamp: block.timestamp)
+                
+                yield op, block.transaction_ids[index], block_num
+              end
+            end
+            
+            next unless !!Meeseeker.include_virtual
+            
+            retries = 0
+            
+            # This is where it gets tricky.  Virtual ops sometims don't show up
+            # right away, especially if we're streaming on head blocks.  In that
+            # situation, we might only need to wait about 1 block.  This loop
+            # will likely one execute one iteration, but we have fallback logic
+            # in case there are complications.
+            # 
+            # See: https://developers.steem.io/tutorials-recipes/virtual-operations-when-streaming-blockchain-transactions
+            
+            loop do
+              condenser_api ||= Steem::CondenserApi.new(url: Meeseeker.node_url)
+              condenser_api.get_ops_in_block(block_num, true) do |vops|
+                redo if vops.nil?
+                
+                if vops.empty? && mode != :head
+                  # Usually, we just need to slow down to allow virtual ops to
+                  # show up after a short delay.  Adding this delay doesn't
+                  # impact overall performance because steem-ruby will batch
+                  # when block streams fall behind.
+                  
+                  if retries < MAX_VOP_RETRY
+                    retries = retries + 1
+                    condenser_api = nil
+                    sleep 3 * retries
+                    
+                    redo
+                  end
+                  
+                  puts "Gave up retrying virtual ops lookup on block #{block_num}"
+                  
+                  break
+                end
+                
+                if retries > 0
+                  puts "Found virtual ops for block #{block_num} aftere #{retries} retrie(s)"
+                end
+                
+                vops.each do |vop|
+                  normalized_op = Hashie::Mash.new(
+                    type: vop.op[0],
+                    value: vop.op[1], 
+                    timestamp: vop.timestamp
+                  )
+                  
+                  yield normalized_op, vop.trx_id, vop.block
+                end
+              end
+              
+              break
+            end
           end
         end
       end
