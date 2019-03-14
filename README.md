@@ -288,13 +288,52 @@ Or to get all ops for a particular transaction:
 redis-cli --scan --pattern 'steem:*:31ecb9c85e9eabd7ca2460fdb4f3ce4a7ca6ec32:*'
 ```
 
----
+### Steem Engine Support
 
-<center>
-  <img src="https://i.imgur.com/Y3Sa2GW.jpg" />
-</center>
+As of `v0.0.6`, meeseeker can also follow the Steem Engine side-chain.  This is optional and requires a separate process.
 
-See some of my previous Ruby How To posts in: [#radiator](https://steemit.com/created/radiator) [#ruby](https://steemit.com/created/ruby)
+To sync Steem Engine to your local redis source (also defaults to `redis://127.0.0.1:6379/0`):
+
+```bash
+meeseeker sync steem_engine
+```
+
+When running `meeseeker sync steem_engine`, the following channels are available:
+
+* `steem_engine:block`
+* `steem_engine:transaction`
+* `steem_engine:market:buy`
+* `steem_engine:market:cancel`
+* `steem_engine:market:sell`
+* `steem_engine:sscstore:buy`
+* `steem_engine:steempegged:buy`
+* `steem_engine:steempegged:removeWithdrawal`
+* `steem_engine:steempegged:withdraw`
+* `steem_engine:tokens:create`
+* `steem_engine:tokens:issue`
+* `steem_engine:tokens:transfer`
+* `steem_engine:tokens:updateMetadata`
+* `steem_engine:tokens:updateUrl`
+
+The above "channel/action" patterns are the ones that are known that the time of writing.  In addition, if a new contract is added or updated, meeseeker will automatically publish to these corresponding channels as they appear, without needing to update or even restart meeseeker.
+
+See main section on [Using `SUBSCRIBE`](#using-subscribe).
+
+Once your SteemEngine sync has started, you can begin doing queries against redis, for example, in the `redis-cli`:
+
+```bash
+redis-cli --scan --pattern 'steem_engine:*:tokens:transfer'
+```
+
+This returns the keys, for example:
+
+```
+steem_engine:18000:d414373db84e6a642f289641ea1433fda22b8a4d:0:tokens:transfer
+steem_engine:18004:c9e06c8449d2d04b4a0a31ec7b80d2f62009a5f0:0:tokens:transfer
+steem_engine:17994:faf097391760ad896b19d5854e2822f62dee284b:0:tokens:transfer
+```
+
+See main section on [Using `SCAN`](#using-scan).
 
 ### Docker
 
@@ -315,6 +354,14 @@ docker run \
 ```
 
 Also see: https://hub.docker.com/r/inertia/meeseeker/
+
+---
+
+<center>
+  <img src="https://i.imgur.com/Y3Sa2GW.jpg" />
+</center>
+
+See some of my previous Ruby How To posts in: [#radiator](https://steemit.com/created/radiator) [#ruby](https://steemit.com/created/ruby)
 
 ## Get in touch!
 
