@@ -52,6 +52,7 @@ module Meeseeker::SteemEngine
           current_block_num = block_num
         end
         
+        redis.publish("steem_engine:#{contract}", {key: key}.to_json)
         redis.publish("steem_engine:#{contract}:#{action}", {key: key}.to_json)
       end
     end

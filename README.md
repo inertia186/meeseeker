@@ -302,13 +302,17 @@ When running `meeseeker sync steem_engine`, the following channels are available
 
 * `steem_engine:block`
 * `steem_engine:transaction`
+* `steem_engine:market`
 * `steem_engine:market:buy`
 * `steem_engine:market:cancel`
 * `steem_engine:market:sell`
+* `steem_engine:sscstore`
 * `steem_engine:sscstore:buy`
+* `steem_engine:steempegged`
 * `steem_engine:steempegged:buy`
 * `steem_engine:steempegged:removeWithdrawal`
 * `steem_engine:steempegged:withdraw`
+* `steem_engine:tokens`
 * `steem_engine:tokens:create`
 * `steem_engine:tokens:issue`
 * `steem_engine:tokens:transfer`
