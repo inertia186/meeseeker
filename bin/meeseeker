@@ -23,7 +23,7 @@ when 'sync', 'witness:schedule'
   max_backoff = 30
   
   loop do; begin
-    Rake::Task[ARGV[0]].invoke(ARGV[1])
+    Rake::Task[ARGV[0]].invoke(*ARGV[1..-1])
   rescue => e
     puts "Error: #{e.inspect}"
     backoff = [backoff, max_backoff].min
@@ -35,7 +35,7 @@ when 'find' then Rake::Task['find'].invoke(*ARGV[1..-1])
 when 'reset' then Rake::Task['reset'].invoke
 else
   puts "\nBegin/resume sync:"
-  puts "\t#{filename} sync\n\n"
+  puts "\t#{filename} sync [chain] [block_num]\n\n"
   puts "Publish witness schedule:"
   puts "\t#{filename} witness:schedule\n\n"
   puts "Start in the ruby console:"
