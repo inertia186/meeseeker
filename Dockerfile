@@ -13,8 +13,9 @@ RUN \
         libssl-dev \
         libreadline-dev \
         zlib1g-dev \
-        ruby \
-        ruby-dev
+        ruby-full \
+        ruby-dev && \
+    apt-get clean
 
 RUN gem update --system
 RUN gem install bundler
@@ -27,6 +28,7 @@ RUN chmod +x /meeseeker/bin/meeseeker
 RUN bundle config --global silence_root_warning 1
 RUN bundle install
 
-CMD /usr/local/bin/redis-server --daemonize yes && bundle exec rake sync
+CMD /usr/local/bin/redis-server --daemonize yes && \
+  bundle exec rake sync
 
 EXPOSE 6379

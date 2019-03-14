@@ -22,6 +22,7 @@ module Meeseeker
       max_blocks = 30 # must be at least 15 to get past irreversible
     
       assert Rake::Task['verify:block_org'].invoke(max_blocks)
+      assert Rake::Task['verify:steem_engine_block_org'].invoke(max_blocks)
       assert Rake::Task['verify:witness:schedule'].invoke(max_blocks)
       
       Rake::Task['reset'].invoke

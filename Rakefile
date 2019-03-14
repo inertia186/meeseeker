@@ -31,6 +31,16 @@ task :push do
   exec "gem push meeseeker-#{Meeseeker::VERSION}.gem"
 end
 
+desc 'Build a new version of the meeseeker docker image.'
+task :docker_build do
+  exec 'docker build -t inertia/meeseeker:latest .'
+end
+
+desc 'Publish the current version of the meeseeker docker image.'
+task :docker_push do
+  exec 'docker push inertia/meeseeker:latest'
+end
+
 task :check_schema do
   begin
     abort 'Unable to ping redis source.' unless Meeseeker.redis.ping == 'PONG'
@@ -41,8 +51,17 @@ task :check_schema do
   end
 end
 
-task(:sync, [:at_block_num] => [:check_schema]) do |t, args|
-  job = Meeseeker::BlockFollowerJob.new
+task(:sync, [:chain, :at_block_num] => [:check_schema]) do |t, args|
+  chain = (args[:chain] || 'steem').to_sym
+  
+  job = case chain
+  when :steem
+    Meeseeker::BlockFollowerJob.new
+  when :steem_engine
+    Meeseeker::SteemEngine::FollowerJob.new
+  else; abort("Unknown chain: #{chain}")
+  end
+  
   job.perform(at_block_num: args[:at_block_num])
 end
 
@@ -54,11 +73,13 @@ namespace :witness do
   end
 end
 
-task(:find, [:what, :key] => [:check_schema]) do |t, args|
+task(:find, [:what, :key, :chain] => [:check_schema]) do |t, args|
+  chain = (args[:chain] || 'steem').downcase.to_sym
   redis = Meeseeker.redis
+  
   match = case args[:what].downcase.to_sym
-  when :block then "steem:#{args[:key]}:*"
-  when :trx then "steem:*:#{args[:key]}:*"
+  when :block then "#{chain}:#{args[:key]}:*"
+  when :trx then "#{chain}:*:#{args[:key]}:*"
   else; abort "Unknown lookup using #{args}"
   end
 
@@ -74,6 +95,7 @@ end
 task reset: [:check_schema] do
   print 'Dropping keys ...'
   keys = Meeseeker.redis.keys('steem:*')
+  keys += Meeseeker.redis.keys('steem_engine:*')
   
   if keys.any?
     print " found #{keys.size} keys ..."
@@ -221,6 +243,119 @@ namespace :verify do
     end
   end
   
+  desc 'Verifies Steem Engine transactions land where they should.'
+  task :steem_engine_block_org, [:max_blocks] do |t, args|
+    max_blocks = args[:max_blocks]
+    node_url = ENV.fetch('MEESEEKER_STEEM_ENGINE_NODE_URL', 'https://api.steem-engine.com/rpc')
+    agent = Meeseeker::SteemEngine::Agent.new(url: node_url)
+    until_block_num = if !!max_blocks
+      agent.latest_block_info['blockNumber']
+    end
+    
+    Thread.new do
+      job = Meeseeker::SteemEngine::FollowerJob.new
+      
+      loop do
+        begin
+          at_block_num = agent.latest_block_info["blockNumber"] - max_blocks.to_i
+          at_block_num = [at_block_num, 1].max
+          job.perform(at_block_num: at_block_num, until_block_num: until_block_num)
+        rescue => e
+          puts e.inspect
+          sleep 5
+        end
+        
+        break # success
+      end
+      
+      puts 'Background sync finished ...'
+    end
+    
+    begin
+      block_channel = 'steem_engine:block'
+      redis_url = ENV.fetch('MEESEEKER_REDIS_URL', 'redis://127.0.0.1:6379/0')
+      subscription = Redis.new(url: redis_url)
+      ctx = Redis.new(url: redis_url)
+      timeout = (max_blocks).to_i * 3
+      
+      subscribe_mode, subscribe_args = if timeout > 0
+        [:subscribe_with_timeout, [timeout, [block_channel]]]
+      else
+        [:subscribe, [[block_channel]]]
+      end
+      
+      subscription.send(subscribe_mode, *subscribe_args) do |on|
+        on.subscribe do |channel, subscriptions|
+          puts "Subscribed to ##{channel} (subscriptions: #{subscriptions})"
+        end
+        
+        on.message do |channel, message|
+          payload = JSON[message]
+          block_num = payload['block_num']
+          next_block_num = block_num + 1
+          
+          if !!max_blocks
+            if block_num >= until_block_num
+              # We're done trailing blocks.  Typically, this is used by unit
+              # tests so the test can halt.
+              
+              subscription.unsubscribe
+              next
+            end
+          end
+          
+          while ctx.keys("steem_engine:#{next_block_num}:*").size == 0
+            # This ensures at least the next block has been indexed before
+            # proceeding.
+            
+            puts "Waiting for block: #{next_block_num} ..."
+            sleep 6
+          end
+          
+          # In theory, we should have all the keys using this pattern.
+          keys = ctx.keys("steem_engine:#{block_num}:*")
+          
+          # If we have all the keys, we should also have all transaction ids.
+          expected_ids = keys.map { |k| k.split(':')[2] }.uniq
+          actual_ids = nil
+          
+          agent.block(block_num).tap do |block|
+            raise 'Got empty block result.' if block.nil?
+            
+            actual_ids = block['transactions'].map{|trx| trx['transactionId'].split('-').first}.uniq
+          end
+          
+          # We do an intersection to make sure there's no difference between
+          # the two copies, regardless of order, as opposed to just checking that
+          # the lengths match.
+          
+          (actual_ids & expected_ids).tap do |intersection|
+            all_sizes = [intersection.size, expected_ids.size, actual_ids.size]
+            puts 'intersection: %d; expected: %d; actual: %d' % all_sizes
+            
+            if all_sizes.min != all_sizes.max
+              puts "Expected transaction ids:"
+              puts expected_ids
+              puts "Actual transaction ids:"
+              puts actual_ids
+              
+              puts "actual_ids minus expected:"
+              puts actual_ids - expected_ids
+              puts "expected_ids minus actual:"
+              puts expected_ids - actual_ids
+              
+              exit(-1)
+            end
+          end
+        end
+        
+        on.unsubscribe do |channel, subscriptions|
+          puts "Unsubscribed from ##{channel} (subscriptions: #{subscriptions})"
+        end
+      end
+    end
+  end
+    
   namespace :witness do
     desc 'Verifies witnessses in the schedule produced a block.'
     task :schedule, [:max_blocks] do |t, args|

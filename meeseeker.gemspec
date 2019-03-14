@@ -26,6 +26,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'minitest-proveit', '~> 1.0', '>= 1.0.0'
   s.add_development_dependency 'simplecov', '~> 0.15', '>= 0.15.1'
   s.add_development_dependency 'pry', '~> 0.11', '>= 0.11.3'
+  s.add_development_dependency 'irb', '~> 1.0', '>= 1.0.0'
 
   s.add_dependency 'redis', '~> 4.1', '>= 4.1.0'
   s.add_dependency 'steem-mechanize', '~> 0.0', '>= 0.0.5'
