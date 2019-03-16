@@ -65,18 +65,25 @@ module Meeseeker::SteemEngine
       if !!options[:at_block_num]
         last_block_num = options[:at_block_num].to_i
       else
-        last_block_num = redis.get(Meeseeker::LAST_STEEM_ENGINE_BLOCK_NUM_KEY).to_i + 1
+        new_sync = false
+        last_block_num = redis.get(Meeseeker::LAST_STEEM_ENGINE_BLOCK_NUM_KEY)
         block_info = agent.latest_block_info
         block_num = block_info['blockNumber']
-        
-        last_block = agent.block(last_block_num)
+        last_block = agent.block(block_num)
         last_block_timestamp = Time.parse(last_block['timestamp'] + 'Z')
+                
+        if last_block_num.nil?
+          new_sync = true
+          last_block_num = block_num
+        else
+          last_block_num = last_block_num.to_i + 1
+        end
         
         if Meeseeker.expire_keys == -1
           last_block_num = [last_block_num, block_num].max
           
           puts "Sync Steem Engine from: #{last_block_num}"
-        elsif Time.now.utc - last_block_timestamp > Meeseeker.expire_keys
+        elsif new_sync || (Time.now.utc - last_block_timestamp > Meeseeker.expire_keys)
           last_block_num = block_num + 1
           
           puts 'Starting new Steem Engine sync.'
