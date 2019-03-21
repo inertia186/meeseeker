@@ -361,6 +361,60 @@ namespace :verify do
       end
     end
   end
+  
+  desc 'Verifies Steem Engine sidechain against the mainnet.'
+  task :steem_engine_ref_blocks do |t|
+    redis_url = ENV.fetch('MEESEEKER_REDIS_URL', 'redis://127.0.0.1:6379/0')
+    ctx = ctx = Redis.new(url: redis_url)
+    keys = ctx.keys('steem_engine:*')
+    block_api = Steem::BlockApi.new
+    block_trxs = {}
+    
+    puts "Checking Steem Engine keys: #{keys.size}"
+    
+    keys.each do |key|
+      transaction = JSON[ctx.get(key)]
+      block_num = transaction['refSteemBlockNumber']
+      
+      block_trxs[block_num] ||= []
+      block_trxs[block_num] << transaction['transactionId'].split('-').first
+    end
+    
+    puts "Related mainnet blocks: #{block_trxs.keys.size}"
+    
+    skipped_blocks = []
+    
+    block_api.get_blocks(block_range: block_trxs.keys) do |block, block_num|
+      if block.nil? || block[:transaction_ids].nil?
+        print 'S'
+        skipped_blocks << block_num
+        
+        next
+      else
+        print '.'
+      end
+    
+      if (block.transaction_ids & block_trxs[block_num]).none?
+        puts "\nNo intersection in #{block_num}!"
+        puts "Expected the following sidechain trx_ids: #{block_trxs[block_num].join(', ')}"
+      end
+    end
+    
+    puts "\nBlocks to retry: #{skipped_blocks.size}"
+    
+    skipped_blocks.each do |block_num|
+      block_api.get_block(block_num: block_num) do |result|
+        block = result.block
+        
+        if (block.transaction_ids & block_trxs[block_num]).none?
+          puts "No intersection in #{block_num}!"
+          puts "Expected the following sidechain trx_ids: #{block_trxs[block_num].join(', ')}"
+        end
+      end
+    end
+    
+    puts "Done."
+  end
     
   namespace :witness do
     desc 'Verifies witnessses in the schedule produced a block.'
