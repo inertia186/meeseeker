@@ -9,7 +9,7 @@ require 'meeseeker/steem_engine/follower_job'
 
 module Meeseeker
   LAST_BLOCK_NUM_KEY = 'steem:meeseeker:last_block_num'
-  LAST_STEEM_ENGINE_BLOCK_NUM_KEY = 'steem:meeseeker:last_steem_engine_block_num'
+  LAST_STEEM_ENGINE_BLOCK_NUM_KEY = 'steem_engine:meeseeker:last_block_num'
   BLOCKS_PER_DAY = 28800
   VIRTUAL_TRX_ID = '0000000000000000000000000000000000000000'
   @redis = Redis.new(url: ENV.fetch('MEESEEKER_REDIS_URL', 'redis://127.0.0.1:6379/0'))

@@ -92,10 +92,16 @@ task(:find, [:what, :key, :chain] => [:check_schema]) do |t, args|
   end
 end
 
-task reset: [:check_schema] do
-  print 'Dropping keys ...'
-  keys = Meeseeker.redis.keys('steem:*')
-  keys += Meeseeker.redis.keys('steem_engine:*')
+task :reset, [:chain] => [:check_schema] do |t, args|
+  chain = (args[:chain] || 'all').to_sym
+  keys = []
+  
+  print 'Dropping keys for set: %s ...' % chain.to_s
+  
+  case chain
+  when :steem, :all then keys += Meeseeker.redis.keys('steem:*')
+  when :steem_engine, :all then keys += Meeseeker.redis.keys('steem_engine:*')
+  end
   
   if keys.any?
     print " found #{keys.size} keys ..."
