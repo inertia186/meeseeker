@@ -13,22 +13,37 @@ RUN \
         libssl-dev \
         libreadline-dev \
         zlib1g-dev \
-        ruby-full \
-        ruby-dev && \
-    apt-get clean
+        nodejs \
+        procps && \
+    apt-get clean && \
+    command curl -sSL https://rvm.io/mpapis.asc | gpg --import - && \
+    command curl -sSL https://rvm.io/pkuczynski.asc | gpg --import - && \
+    curl -sSL https://get.rvm.io | bash -s stable --ruby
 
-RUN gem update --system
-RUN gem install bundler
+RUN \
+  /bin/bash -c " \
+    source /usr/local/rvm/scripts/rvm && \
+    gem update --system && \
+    gem install bundler \
+  "
 
 # copy in everything from repo
 COPY . .
 
 RUN chmod +x /meeseeker/bin/meeseeker
 
-RUN bundle config --global silence_root_warning 1
-RUN bundle install
+RUN \
+  /bin/bash -c " \
+    source /usr/local/rvm/scripts/rvm && \
+    bundle config --global silence_root_warning 1 && \
+    bundle install \
+  "
 
-CMD /usr/local/bin/redis-server --daemonize yes && \
-  bundle exec rake sync
+ENTRYPOINT \
+  /usr/local/bin/redis-server --daemonize yes && \
+  /bin/bash -c " \
+    source /usr/local/rvm/scripts/rvm && \
+    bundle exec rake sync \
+  "
 
 EXPOSE 6379
