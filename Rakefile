@@ -65,6 +65,32 @@ task(:sync, [:chain, :at_block_num] => [:check_schema]) do |t, args|
   job.perform(at_block_num: args[:at_block_num])
 end
 
+task(:fill_blocks, [:chain, :max_threads, :at_block_num, :until_block_num] => [:check_schema]) do |t, args|
+  chain = (args[:chain] || 'steem').to_sym
+  max_threads = args[:max_threads].to_i
+  at_block_num = args[:at_block_num].to_i
+  until_block_num = args[:until_block_num].to_i
+  block_range = (at_block_num..until_block_num)
+  threads = []
+  
+  block_range.each_slice(block_range.size / max_threads) do |r|
+    puts r.inspect
+    threads << Thread.new do
+      job = case chain
+      when :steem
+        Meeseeker::BlockFollowerJob.new
+      when :steem_engine
+        Meeseeker::SteemEngine::FollowerJob.new
+      else; abort("Unknown chain: #{chain}")
+      end
+      
+      job.perform(at_block_num: r.first, until_block_num: r.last)
+    end
+  end
+  
+  threads.each(&:join)
+end
+
 namespace :witness do
   desc 'Publish the witness schedule every minute or so (steem:witness:schedule).'
   task :schedule do
