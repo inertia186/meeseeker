@@ -61,6 +61,7 @@ module Meeseeker::SteemEngine
       redis = Meeseeker.redis
       last_block_num = nil
       agent = Agent.new
+      until_block_num = options[:until_block_num].to_i
       
       if !!options[:at_block_num]
         last_block_num = options[:at_block_num].to_i
@@ -107,6 +108,8 @@ module Meeseeker::SteemEngine
         transactions.each do |transaction|
           yield transaction.merge(timestamp: block['timestamp']), block
         end
+        
+        break if until_block_num != 0 && block_num > until_block_num
         
         block_num = block_num + 1
       end
