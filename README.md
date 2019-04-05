@@ -121,7 +121,7 @@ When running `meeseeker sync`, the following channels are available:
 
 As mentioned in the first `whatever` example, for ops, [all operation types](https://developers.steem.io/apidefinitions/broadcast-ops) can be subscribed to as channels, including virtual operations, if enabled.
 
-In the second `whatever` example, for `custom_json.id`, if you want to subscribe to the `follow` channel, use `steem:op:custom_json:follow`.  Or if you want to subscribe to the `sm_team_reveal` channel, use `steem:op:custom_json:follow`.  The `custom_json.id` channels are not enabled by default.  To enable it, set the `MEESEEKER_PUBLISH_OP_CUSTOM_ID` to `true` (see example below).
+In the second `whatever` example, for `custom_json.id`, if you want to subscribe to the `follow` channel, use `steem:op:custom_json:follow`.  Or if you want to subscribe to the `sm_team_reveal` channel, use `steem:op:custom_json:sm_team_reveal`.  The `custom_json.id` channels are not enabled by default.  To enable it, set the `MEESEEKER_PUBLISH_OP_CUSTOM_ID` to `true` (see example below).
 
 For example, from `redis-cli`, if we wanted to stream block numbers:
 
