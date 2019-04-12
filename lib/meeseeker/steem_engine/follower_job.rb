@@ -9,7 +9,7 @@ module Meeseeker::SteemEngine
       
       stream_transactions(options) do |transaction, block|
         begin
-          trx_id = transaction['transactionId'].split('-').first
+          trx_id = transaction['transactionId'].to_s.split('-').first
           block_num = block['blockNumber']
           current_key_prefix = "steem_engine:#{block_num}:#{trx_id}"
           contract = transaction['contract']

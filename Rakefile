@@ -328,7 +328,7 @@ namespace :verify do
           agent.block(block_num).tap do |block|
             raise 'Got empty block result.' if block.nil?
             
-            actual_ids = block['transactions'].map{|trx| trx['transactionId'].split('-').first}.uniq
+            actual_ids = block['transactions'].map{|trx| trx['transactionId'].to_s.split('-').first}.uniq
           end
           
           # We do an intersection to make sure there's no difference between
@@ -377,7 +377,7 @@ namespace :verify do
       block_num = transaction['refSteemBlockNumber']
       
       block_trxs[block_num] ||= []
-      block_trxs[block_num] << transaction['transactionId'].split('-').first
+      block_trxs[block_num] << transaction['transactionId'].to_s.split('-').first
     end
     
     puts "Related mainnet blocks: #{block_trxs.keys.size}"
