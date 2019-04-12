@@ -28,7 +28,13 @@ RUN \
   "
 
 # copy in everything from repo
-COPY . .
+COPY bin bin
+COPY lib lib
+COPY Gemfile .
+COPY meeseeker.gemspec .
+COPY Rakefile .
+COPY LICENSE .
+COPY README.md .
 
 RUN chmod +x /meeseeker/bin/meeseeker
 
