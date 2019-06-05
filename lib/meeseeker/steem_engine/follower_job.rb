@@ -9,7 +9,10 @@ module Meeseeker::SteemEngine
       current_block_num = nil
       block_transactions = []
       
-      stream_transactions(options) do |transaction, block|
+      stream_transactions(options) do |options, block|
+        transaction = options[:transaction]
+        virtual = !!options[:virtual]
+        
         begin
           trx_id = transaction['transactionId'].to_s.split('-').first
           block_num = block['blockNumber']
@@ -29,7 +32,14 @@ module Meeseeker::SteemEngine
               }
               
               block_transactions << trx_id
-              redis.publish('steem_engine:transaction', transaction_payload.to_json)
+              
+              trx_pub_key = if !!virtual
+                'steem_engine:transaction'
+              else
+                'steem_engine:virtual_transaction'
+              end
+              
+              redis.publish(trx_pub_key, transaction_payload.to_json)
             end
             
             last_key_prefix = "steem_engine:#{block_num}:#{trx_id}"
@@ -120,7 +130,7 @@ module Meeseeker::SteemEngine
       
       loop do
         begin
-        block = agent.block(block_num)
+          block = agent.block(block_num)
           reset_retry_interval
         rescue Net::HTTP::Persistent::Error => e
           puts "Retrying: #{e}"
@@ -137,7 +147,19 @@ module Meeseeker::SteemEngine
         transactions = block['transactions']
         
         transactions.each do |transaction|
-          yield transaction.merge(timestamp: block['timestamp']), block
+          yield({transaction: transaction.merge(timestamp: block['timestamp'])}, block)
+        end
+        
+        virtual_transactions = block['virtualTransactions']
+        
+        virtual_transactions.each do |virtual_transaction|
+          _, vtrx_in_block = virtual_transaction['transactionId'].split('-')
+          virtual_transaction = virtual_transaction.merge(
+            timestamp: block['timestamp'],
+            'transactionId' => "#{Meeseeker::VIRTUAL_TRX_ID}-#{vtrx_in_block}"
+          )
+          
+          yield({transaction: virtual_transaction, virtual: true}, block)
         end
         
         break if until_block_num != 0 && block_num > until_block_num
