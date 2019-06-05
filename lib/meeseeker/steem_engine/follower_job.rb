@@ -1,4 +1,6 @@
 module Meeseeker::SteemEngine
+  MAX_RETRY_INTERVAL = 18.0
+  
   class FollowerJob
     def perform(options = {})
       redis = Meeseeker.redis
@@ -57,10 +59,31 @@ module Meeseeker::SteemEngine
       end
     end
   private
+    def agent
+      @agent ||= Agent.new
+    end
+    
+    def agent_reset
+      return if @agent.nil?
+      
+      @agent.shutdown
+      @agent = nil
+    end
+    
+    def retry_interval
+      @retry_interval ||= 0.1
+      @retry_interval *= 2
+      
+      [@retry_interval, MAX_RETRY_INTERVAL].min
+    end
+    
+    def reset_retry_interval
+      @retry_interval = nil
+    end
+    
     def stream_transactions(options = {}, &block)
       redis = Meeseeker.redis
       last_block_num = nil
-      agent = Agent.new
       until_block_num = options[:until_block_num].to_i
       
       if !!options[:at_block_num]
@@ -96,7 +119,15 @@ module Meeseeker::SteemEngine
       block_num = last_block_num
       
       loop do
+        begin
         block = agent.block(block_num)
+          reset_retry_interval
+        rescue Net::HTTP::Persistent::Error => e
+          puts "Retrying: #{e}"
+          agent_reset
+          sleep retry_interval
+          redo
+        end
         
         if block.nil?
           sleep 3 # sleep for one mainnet block interval
