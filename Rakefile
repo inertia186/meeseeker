@@ -99,8 +99,11 @@ task :reset, [:chain] => [:check_schema] do |t, args|
   print 'Dropping keys for set: %s ...' % chain.to_s
   
   case chain
-  when :steem, :all then keys += Meeseeker.redis.keys('steem:*')
-  when :steem_engine, :all then keys += Meeseeker.redis.keys('steem_engine:*')
+  when :steem then keys += Meeseeker.redis.keys('steem:*')
+  when :steem_engine then keys += Meeseeker.redis.keys('steem_engine:*')
+  when :all
+    keys += Meeseeker.redis.keys('steem:*')
+    keys += Meeseeker.redis.keys('steem_engine:*')
   end
   
   if keys.any?
@@ -323,6 +326,7 @@ namespace :verify do
           
           # If we have all the keys, we should also have all transaction ids.
           expected_ids = keys.map { |k| k.split(':')[2] }.uniq
+          expected_ids -= [Meeseeker::VIRTUAL_TRX_ID]
           actual_ids = nil
           
           agent.block(block_num).tap do |block|
@@ -360,6 +364,8 @@ namespace :verify do
         end
       end
     end
+    
+    agent.shutdown
   end
   
   desc 'Verifies Steem Engine sidechain against the mainnet.'
