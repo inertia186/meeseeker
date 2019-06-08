@@ -34,9 +34,9 @@ module Meeseeker::SteemEngine
               block_transactions << trx_id
               
               trx_pub_key = if !!virtual
-                'steem_engine:transaction'
-              else
                 'steem_engine:virtual_transaction'
+              else
+                'steem_engine:transaction'
               end
               
               redis.publish(trx_pub_key, transaction_payload.to_json)
