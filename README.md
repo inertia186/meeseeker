@@ -302,6 +302,10 @@ When running `meeseeker sync steem_engine`, the following channels are available
 
 * `steem_engine:block`
 * `steem_engine:transaction`
+* `steem_engine:virtual_transaction`
+* `steem_engine:contract`
+* `steem_engine:contract:deploy`
+* `steem_engine:contract:update`
 * `steem_engine:market`
 * `steem_engine:market:buy`
 * `steem_engine:market:cancel`
@@ -313,10 +317,15 @@ When running `meeseeker sync steem_engine`, the following channels are available
 * `steem_engine:steempegged:removeWithdrawal`
 * `steem_engine:steempegged:withdraw`
 * `steem_engine:tokens`
+* `steem_engine:tokens:checkPendingUnstake`
 * `steem_engine:tokens:create`
+* `steem_engine:tokens:enableStaking`
 * `steem_engine:tokens:issue`
 * `steem_engine:tokens:transfer`
+* `steem_engine:tokens:transferOwnership`
+* `steem_engine:tokens:unstake`
 * `steem_engine:tokens:updateMetadata`
+* `steem_engine:tokens:updateParams`
 * `steem_engine:tokens:updateUrl`
 
 The above "channel/action" patterns are the ones that are known that the time of writing.  In addition, if a new contract is added or updated, meeseeker will automatically publish to these corresponding channels as they appear, without needing to update or even restart meeseeker.
