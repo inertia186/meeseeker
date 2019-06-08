@@ -9,9 +9,9 @@ module Meeseeker::SteemEngine
       current_block_num = nil
       block_transactions = []
       
-      stream_transactions(options) do |options, block|
-        transaction = options[:transaction]
-        virtual = !!options[:virtual]
+      stream_transactions(options) do |data, block|
+        transaction = data[:transaction]
+        virtual = !!data[:virtual]
         
         begin
           trx_id = transaction['transactionId'].to_s.split('-').first
@@ -24,7 +24,7 @@ module Meeseeker::SteemEngine
             trx_index += 1
           else
             if !!last_key_prefix
-              n, b, t = last_key_prefix.split(':')
+              _, b, t = last_key_prefix.split(':')
               transaction_payload = {
                 block_num: b.to_i,
                 transaction_id: t,

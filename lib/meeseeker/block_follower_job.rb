@@ -18,7 +18,7 @@ module Meeseeker
             trx_index += 1
           else
             if !!last_key_prefix
-              n, b, t = last_key_prefix.split(':')
+              _, b, t = last_key_prefix.split(':')
               transaction_payload = {
                 block_num: b.to_i,
                 transaction_id: t,
@@ -129,12 +129,12 @@ module Meeseeker
           # to embed it into op values.  This should also reduce streaming
           # overhead since we no longer stream block_headers inder the hood.
           
-          stream.blocks(options) do |block, block_num|
-            block.transactions.each_with_index do |transaction, index|
+          stream.blocks(options) do |b, n|
+            b.transactions.each_with_index do |transaction, index|
               transaction.operations.each do |op|
-                op = op.merge(timestamp: block.timestamp)
+                op = op.merge(timestamp: b.timestamp)
                 
-                yield op, block.transaction_ids[index], block_num
+                yield op, b.transaction_ids[index], n
               end
             end
             
@@ -152,7 +152,7 @@ module Meeseeker
             
             loop do
               condenser_api ||= Steem::CondenserApi.new(url: Meeseeker.node_url)
-              condenser_api.get_ops_in_block(block_num, true) do |vops|
+              condenser_api.get_ops_in_block(n, true) do |vops|
                 redo if vops.nil?
                 
                 if vops.empty? && mode != :head
@@ -169,13 +169,13 @@ module Meeseeker
                     redo
                   end
                   
-                  puts "Gave up retrying virtual ops lookup on block #{block_num}"
+                  puts "Gave up retrying virtual ops lookup on block #{n}"
                   
                   break
                 end
                 
                 if retries > 0
-                  puts "Found virtual ops for block #{block_num} aftere #{retries} retrie(s)"
+                  puts "Found virtual ops for block #{n} aftere #{retries} retrie(s)"
                 end
                 
                 vops.each do |vop|

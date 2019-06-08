@@ -463,7 +463,6 @@ namespace :verify do
         schedule_channel = 'steem:witness:schedule'
         redis_url = ENV.fetch('MEESEEKER_REDIS_URL', 'redis://127.0.0.1:6379/0')
         subscription = Redis.new(url: redis_url)
-        ctx = Redis.new(url: redis_url)
         timeout = (max_blocks).to_i * 3
         
         subscribe_mode, subscribe_args = if timeout > 0
