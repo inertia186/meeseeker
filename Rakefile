@@ -131,7 +131,7 @@ namespace :verify do
         when :irreversible then dgpo.last_irreversible_block_num
         else; abort "Unknown block mode: #{mode}"
         end
-      end + max_blocks.to_i
+      end + max_blocks.to_i + 1
     end
     
     Thread.new do
