@@ -49,7 +49,7 @@ ENTRYPOINT \
   /usr/local/bin/redis-server --daemonize yes && \
   /bin/bash -c " \
     source /usr/local/rvm/scripts/rvm && \
-    bundle exec rake sync \
+    while :; do bundle exec rake sync; echo Restarting meeseeker; sleep 3; done \
   "
 
 EXPOSE 6379

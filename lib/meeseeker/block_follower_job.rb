@@ -32,7 +32,12 @@ module Meeseeker
             trx_index = 0
           end
           
-          op_type = op.type.split('_')[0..-2].join('_')
+          op_type = if op.type.end_with? '_operation'
+            op.type.split('_')[0..-2].join('_')
+          else
+            op.type
+          end
+          
           key = "#{current_key_prefix}:#{trx_index}:#{op_type}"
           puts key
         end
@@ -49,7 +54,11 @@ module Meeseeker
           if Meeseeker.include_block_header
             catch :block_header do
               block_api.get_block_header(block_num: block_num) do |result|
-                throw :block_header if result.nil || result.header.nil?
+                if result.nil? || result.header.nil?
+                  puts "Node returned empty result for block_header on block_num: #{block_num} (rate limiting?).  Retrying ..."
+                  sleep 3
+                  throw :block_header
+                end
                 
                 block_payload.merge!(result.header.to_h)
               end
@@ -132,6 +141,8 @@ module Meeseeker
           loop do
             begin
               stream.blocks(options) do |b, n|
+                redo if b.nil?
+                
                 b.transactions.each_with_index do |transaction, index|
                   transaction.operations.each do |op|
                     op = op.merge(timestamp: b.timestamp)
@@ -153,9 +164,13 @@ module Meeseeker
                 # See: https://developers.steem.io/tutorials-recipes/virtual-operations-when-streaming-blockchain-transactions
                 
                 loop do
+                  # TODO (HF23) Switch to account_history_api.enum_virtual_ops if supported.
                   condenser_api ||= Steem::CondenserApi.new(url: Meeseeker.node_url)
                   condenser_api.get_ops_in_block(n, true) do |vops|
-                    redo if vops.nil?
+                    if vops.nil?
+                      puts "Node returned empty result for get_ops_in_block on block_num: #{n} (rate limiting?).  Retrying ..."
+                      vops = []
+                    end
                     
                     if vops.empty? && mode != :head
                       # Usually, we just need to slow down to allow virtual ops to
