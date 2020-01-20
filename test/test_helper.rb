@@ -6,6 +6,7 @@ SimpleCov.start
 SimpleCov.merge_timeout 3600
 
 require 'meeseeker'
+require 'mock_redis'
 require 'minitest/autorun'
 require 'minitest/line/describe_track'
 require 'minitest/hell'

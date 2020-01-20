@@ -13,17 +13,27 @@ module Meeseeker
       Rake.application.load_rakefile
       Dir.chdir(pwd)
       
-      if !!Meeseeker.redis.get(Meeseeker::LAST_BLOCK_NUM_KEY)
-        fail "Found existing keys.  Please use 'rake reset' to enable this test."
+      begin
+        if !!Meeseeker.redis.get(Meeseeker::LAST_BLOCK_NUM_KEY)
+          fail "Found existing keys.  Please use 'rake reset' to enable this test."
+        end
+      rescue Redis::CannotConnectError => e
+        puts "Cannot connect to redis, using MockRedis instead."
+        
+        Meeseeker.redis = MockRedis.new  
       end
     end
     
     def test_verify_all_jobs
       max_blocks = 30 # must be at least 15 to get past irreversible
-    
-      assert Rake::Task['verify:block_org'].invoke(max_blocks)
-      assert Rake::Task['verify:steem_engine_block_org'].invoke(max_blocks)
-      assert Rake::Task['verify:witness:schedule'].invoke(max_blocks)
+      
+      begin
+        assert Rake::Task['verify:block_org'].invoke(max_blocks)
+        assert Rake::Task['verify:steem_engine_block_org'].invoke(max_blocks)
+        assert Rake::Task['verify:witness:schedule'].invoke(max_blocks)
+      rescue Redis::TimeoutError => e
+        skip "Timed out."
+      end
       
       Rake::Task['reset'].invoke
     end
