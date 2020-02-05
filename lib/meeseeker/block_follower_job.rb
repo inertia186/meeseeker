@@ -42,6 +42,12 @@ module Meeseeker
           puts key
         end
         
+        unless Meeseeker.max_keys == -1
+          while redis.keys('steem:*').size > Meeseeker.max_keys
+            sleep 3
+          end
+        end
+        
         redis.set(key, op.to_json)
         redis.expire(key, Meeseeker.expire_keys) unless Meeseeker.expire_keys == -1
         

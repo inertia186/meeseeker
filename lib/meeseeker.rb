@@ -20,9 +20,11 @@ module Meeseeker
   @include_block_header = ENV.fetch('MEESEEKER_INCLUDE_BLOCK_HEADER', 'true').downcase == 'true'
   @publish_op_custom_id = ENV.fetch('MEESEEKER_PUBLISH_OP_CUSTOM_ID', 'false').downcase == 'true'
   @expire_keys = ENV.fetch('MEESEEKER_EXPIRE_KEYS', BLOCKS_PER_DAY * 3).to_i
+  @max_keys = ENV.fetch('MEESEEKER_MAX_KEYS', '-1').to_i
   
   extend self
 
   attr_accessor :redis, :node_url, :steem_engine_node_url, :expire_keys,
-    :stream_mode, :include_virtual, :include_block_header, :publish_op_custom_id
+    :max_keys, :stream_mode, :include_virtual, :include_block_header,
+    :publish_op_custom_id
 end
