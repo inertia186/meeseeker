@@ -44,7 +44,7 @@ module Meeseeker
         
         unless Meeseeker.max_keys == -1
           while redis.keys('steem:*').size > Meeseeker.max_keys
-            sleep 3
+            sleep Meeseeker::BLOCK_INTERVAL
           end
         end
         
@@ -62,7 +62,7 @@ module Meeseeker
               block_api.get_block_header(block_num: block_num) do |result|
                 if result.nil? || result.header.nil?
                   puts "Node returned empty result for block_header on block_num: #{block_num} (rate limiting?).  Retrying ..."
-                  sleep 3
+                  sleep Meeseeker::BLOCK_INTERVAL
                   throw :block_header
                 end
                 
@@ -187,7 +187,7 @@ module Meeseeker
                       if retries < MAX_VOP_RETRY
                         retries = retries + 1
                         condenser_api = nil
-                        sleep 3 * retries
+                        sleep Meeseeker::BLOCK_INTERVAL * retries
                         
                         redo
                       end
@@ -224,7 +224,7 @@ module Meeseeker
               # node.
               
               Steem::BlockApi.const_set 'MAX_RANGE_SIZE', 1
-              sleep 3
+              sleep Meeseeker::BLOCK_INTERVAL
               redo
             end
           end

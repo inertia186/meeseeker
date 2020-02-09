@@ -52,7 +52,7 @@ module Meeseeker::SteemEngine
 
         unless Meeseeker.max_keys == -1
           while redis.keys('steem_engine:*').size > Meeseeker.max_keys
-            sleep 3
+            sleep Meeseeker::BLOCK_INTERVAL
           end
         end
         
@@ -146,7 +146,7 @@ module Meeseeker::SteemEngine
         end
         
         if block.nil?
-          sleep 3 # sleep for one mainnet block interval
+          sleep Meeseeker::BLOCK_INTERVAL
           redo
         end
         

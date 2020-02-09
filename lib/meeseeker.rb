@@ -12,6 +12,7 @@ module Meeseeker
   LAST_STEEM_ENGINE_BLOCK_NUM_KEY = 'steem_engine:meeseeker:last_block_num'
   BLOCKS_PER_DAY = 28800
   VIRTUAL_TRX_ID = '0000000000000000000000000000000000000000'
+  BLOCK_INTERVAL = 3
   @redis = Redis.new(url: ENV.fetch('MEESEEKER_REDIS_URL', 'redis://127.0.0.1:6379/0'))
   @node_url = ENV.fetch('MEESEEKER_NODE_URL', 'https://api.steemit.com')
   @steem_engine_node_url = ENV.fetch('MEESEEKER_STEEM_ENGINE_NODE_URL', 'https://api.steem-engine.com/rpc')
@@ -19,7 +20,7 @@ module Meeseeker
   @include_virtual = ENV.fetch('MEESEEKER_INCLUDE_VIRTUAL', 'true').downcase == 'true'
   @include_block_header = ENV.fetch('MEESEEKER_INCLUDE_BLOCK_HEADER', 'true').downcase == 'true'
   @publish_op_custom_id = ENV.fetch('MEESEEKER_PUBLISH_OP_CUSTOM_ID', 'false').downcase == 'true'
-  @expire_keys = ENV.fetch('MEESEEKER_EXPIRE_KEYS', BLOCKS_PER_DAY * 3).to_i
+  @expire_keys = ENV.fetch('MEESEEKER_EXPIRE_KEYS', BLOCKS_PER_DAY * BLOCK_INTERVAL).to_i
   @max_keys = ENV.fetch('MEESEEKER_MAX_KEYS', '-1').to_i
   
   extend self
