@@ -1,6 +1,6 @@
  # meeseeker
 
-Redis based block follower is an efficient way for multiple apps to stream the Steem Blockchain.
+Redis based block follower is an efficient way for multiple apps to stream the Steem/Hive Blockchain.
 
 [![Build Status](https://travis-ci.org/inertia186/meeseeker.svg?branch=master)](https://travis-ci.org/inertia186/meeseeker)
 
@@ -370,17 +370,33 @@ docker run \
 
 Also see: https://hub.docker.com/r/inertia/meeseeker/
 
+### Hive support
+
+If you'd like to run Meeseeker on Hive, here's the quickstart:
+
+```bash
+gem install meeseeker
+```
+
+Then start a sync on Hive by specifying the node:
+
+```bash
+MEESEEKER_NODE_URL=https://api.openhive.network meeseeker sync
+```
+
+That's it. If you've already installed meeseeker prior, no need to update. It just works.
+
 ---
 
 <center>
   <img src="https://i.imgur.com/Y3Sa2GW.jpg" />
 </center>
 
-See some of my previous Ruby How To posts in: [#radiator](https://steemit.com/created/radiator) [#ruby](https://steemit.com/created/ruby)
+See some of my previous Ruby How To posts in: [#radiator](https://peakd.com/created/radiator) [#ruby](https://peakd.com/created/ruby)
 
 ## Get in touch!
 
-If you're using Radiator, I'd love to hear from you.  Drop me a line and tell me what you think!  I'm @inertia on STEEM.
+If you're using Radiator, I'd love to hear from you.  Drop me a line and tell me what you think!  I'm @inertia on STEEM / HIVE.
   
 ## License
 
