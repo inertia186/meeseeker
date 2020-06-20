@@ -2,6 +2,14 @@ module Meeseeker::SteemEngine
   MAX_RETRY_INTERVAL = 18.0
   
   class FollowerJob
+    def initialize(options = {})
+      @chain_key_prefix = options[:chain_key_prefix] || Meeseeker::STEEM_ENGINE_CHAIN_KEY_PREFIX
+    end
+    
+    def chain_name
+      @chain_key_prefix.split('_').map(&:capitalize).join(' ')
+    end
+    
     def perform(options = {})
       redis = Meeseeker.redis
       last_key_prefix = nil
@@ -16,7 +24,7 @@ module Meeseeker::SteemEngine
         begin
           trx_id = transaction['transactionId'].to_s.split('-').first
           block_num = block['blockNumber']
-          current_key_prefix = "steem_engine:#{block_num}:#{trx_id}"
+          current_key_prefix = "#{@chain_key_prefix}:#{block_num}:#{trx_id}"
           contract = transaction['contract']
           action = transaction['action']
 
@@ -34,15 +42,15 @@ module Meeseeker::SteemEngine
               block_transactions << trx_id
               
               trx_pub_key = if !!virtual
-                'steem_engine:virtual_transaction'
+                "#{@chain_key_prefix}:virtual_transaction"
               else
-                'steem_engine:transaction'
+                "#{@chain_key_prefix}:transaction"
               end
               
               redis.publish(trx_pub_key, transaction_payload.to_json)
             end
             
-            last_key_prefix = "steem_engine:#{block_num}:#{trx_id}"
+            last_key_prefix = "#{@chain_key_prefix}:#{block_num}:#{trx_id}"
             trx_index = 0
           end
           
@@ -51,7 +59,7 @@ module Meeseeker::SteemEngine
         end
 
         unless Meeseeker.max_keys == -1
-          while redis.keys('steem_engine:*').size > Meeseeker.max_keys
+          while redis.keys("#{@chain_key_prefix}:*").size > Meeseeker.max_keys
             sleep Meeseeker::BLOCK_INTERVAL
           end
         end
@@ -65,18 +73,21 @@ module Meeseeker::SteemEngine
             block_num: block_num
           }
           
-          redis.set(Meeseeker::LAST_STEEM_ENGINE_BLOCK_NUM_KEY, block_num)
-          redis.publish('steem_engine:block', block_payload.to_json)
+          redis.set(@chain_key_prefix + Meeseeker::LAST_STEEM_ENGINE_BLOCK_NUM_KEY_SUFFIX, block_num)
+          redis.publish("#{@chain_key_prefix}:block", block_payload.to_json)
           current_block_num = block_num
         end
         
-        redis.publish("steem_engine:#{contract}", {key: key}.to_json)
-        redis.publish("steem_engine:#{contract}:#{action}", {key: key}.to_json)
+        redis.publish("#{@chain_key_prefix}:#{contract}", {key: key}.to_json)
+        redis.publish("#{@chain_key_prefix}:#{contract}:#{action}", {key: key}.to_json)
       end
     end
   private
     def agent
-      @agent ||= Agent.new
+      @agent ||= case @chain_key_prefix
+      when 'steem_engine' then Agent.new
+      when 'hive_engine' then Meeseeker::HiveEngine::Agent.new
+      end
     end
     
     def agent_reset
@@ -106,7 +117,7 @@ module Meeseeker::SteemEngine
         last_block_num = options[:at_block_num].to_i
       else
         new_sync = false
-        last_block_num = redis.get(Meeseeker::LAST_STEEM_ENGINE_BLOCK_NUM_KEY)
+        last_block_num = redis.get(@chain_key_prefix + Meeseeker::LAST_STEEM_ENGINE_BLOCK_NUM_KEY_SUFFIX)
         block_info = agent.latest_block_info
         block_num = block_info['blockNumber']
         last_block = agent.block(block_num)
@@ -122,13 +133,13 @@ module Meeseeker::SteemEngine
         if Meeseeker.expire_keys == -1
           last_block_num = [last_block_num, block_num].max
           
-          puts "Sync Steem Engine from: #{last_block_num}"
+          puts "Sync #{chain_name} from: #{last_block_num}"
         elsif new_sync || (Time.now.utc - last_block_timestamp > Meeseeker.expire_keys)
           last_block_num = block_num + 1
           
-          puts 'Starting new Steem Engine sync.'
+          puts "Starting new #{chain_name} sync."
         else
-          puts "Resuming from Steem Engine block #{last_block_num} ..."
+          puts "Resuming from #{chain_name} block #{last_block_num} ..."
         end
       end
       

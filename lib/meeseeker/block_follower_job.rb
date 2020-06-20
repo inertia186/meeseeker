@@ -3,16 +3,20 @@ module Meeseeker
     MAX_VOP_RETRY = 3
     
     def perform(options = {})
-      block_api = Steem::BlockApi.new(url: Meeseeker.node_url)
+      chain = (options[:chain] || 'hive').to_sym
+      url = Meeseeker.default_url(chain)
+      block_api = Meeseeker.block_api_class(chain).new(url: url)
       redis = Meeseeker.redis
       last_key_prefix = nil
       trx_index = 0
       current_block_num = nil
       block_transactions = []
+      chain_key_prefix = chain.to_s if !!options[:chain]
+      chain_key_prefix ||= Meeseeker.default_chain_key_prefix
       
       stream_operations(options) do |op, trx_id, block_num|
         begin
-          current_key_prefix = "steem:#{block_num}:#{trx_id}"
+          current_key_prefix = "#{chain_key_prefix}:#{block_num}:#{trx_id}"
           
           if current_key_prefix == last_key_prefix
             trx_index += 1
@@ -26,9 +30,9 @@ module Meeseeker
               }
               
               block_transactions << trx_id unless trx_id == VIRTUAL_TRX_ID
-              redis.publish('steem:transaction', transaction_payload.to_json)
+              redis.publish("#{chain_key_prefix}:transaction", transaction_payload.to_json)
             end
-            last_key_prefix = "steem:#{block_num}:#{trx_id}"
+            last_key_prefix = "#{chain_key_prefix}:#{block_num}:#{trx_id}"
             trx_index = 0
           end
           
@@ -43,7 +47,7 @@ module Meeseeker
         end
         
         unless Meeseeker.max_keys == -1
-          while redis.keys('steem:*').size > Meeseeker.max_keys
+          while redis.keys("#{chain_key_prefix}:*").size > Meeseeker.max_keys
             sleep Meeseeker::BLOCK_INTERVAL
           end
         end
@@ -71,19 +75,19 @@ module Meeseeker
             end
           end
           
-          redis.set(LAST_BLOCK_NUM_KEY, block_num)
-          redis.publish('steem:block', block_payload.to_json)
+          redis.set(chain_key_prefix + LAST_BLOCK_NUM_KEY_SUFFIX, block_num)
+          redis.publish("#{chain_key_prefix}:block", block_payload.to_json)
           current_block_num = block_num
         end
         
-        redis.publish("steem:op:#{op_type}", {key: key}.to_json)
+        redis.publish("#{chain_key_prefix}:op:#{op_type}", {key: key}.to_json)
         
         if Meeseeker.publish_op_custom_id
           if %w(custom custom_binary custom_json).include? op_type
             id = (op["value"]["id"] rescue nil).to_s
             
             if id.size > 0
-              redis.publish("steem:op:#{op_type}:#{id}", {key: key}.to_json)
+              redis.publish("#{chain_key_prefix}:op:#{op_type}:#{id}", {key: key}.to_json)
             end
           end
         end
@@ -91,7 +95,10 @@ module Meeseeker
     end
   private
     def stream_operations(options = {}, &block)
+      chain = (options[:chain] || 'hive').to_sym
       redis = Meeseeker.redis
+      chain_key_prefix = chain.to_s if !!options[:chain]
+      chain_key_prefix ||= Meeseeker.chain_key_prefix
       last_block_num = nil
       mode = options.delete(:mode) || Meeseeker.stream_mode
       options[:include_virtual] ||= Meeseeker.include_virtual
@@ -99,8 +106,9 @@ module Meeseeker
       if !!options[:at_block_num]
         last_block_num = options[:at_block_num].to_i
       else
-        database_api = Steem::DatabaseApi.new(url: Meeseeker.node_url)
-        last_block_num = redis.get(LAST_BLOCK_NUM_KEY).to_i + 1
+        url = Meeseeker.default_url(chain)
+        database_api = Meeseeker.database_api_class(chain).new(url: url)
+        last_block_num = redis.get(chain_key_prefix + LAST_BLOCK_NUM_KEY_SUFFIX).to_i + 1
         
         block_num = catch :dynamic_global_properties do
           database_api.get_dynamic_global_properties do |dgpo|
@@ -131,11 +139,12 @@ module Meeseeker
       end
       
       begin
-        stream_options = {url: Meeseeker.node_url, mode: mode}
+        url = Meeseeker.default_url(chain)
+        stream_options = {url: url, mode: mode}
         options = options.merge(at_block_num: last_block_num)
         condenser_api = nil
         
-        Steem::Stream.new(stream_options).tap do |stream|
+        Meeseeker.stream_class.new(stream_options).tap do |stream|
           puts "Stream begin: #{stream_options.to_json}; #{options.to_json}"
           
           # Prior to v0.0.4, we only streamed operations with stream.operations.
@@ -171,7 +180,8 @@ module Meeseeker
                 
                 loop do
                   # TODO (HF23) Switch to account_history_api.enum_virtual_ops if supported.
-                  condenser_api ||= Steem::CondenserApi.new(url: Meeseeker.node_url)
+                  url = Meeseeker.default_url(chain)
+                  condenser_api ||= Meeseeker.condenser_api_class(chain).new(url: url)
                   condenser_api.get_ops_in_block(n, true) do |vops|
                     if vops.nil?
                       puts "Node returned empty result for get_ops_in_block on block_num: #{n} (rate limiting?).  Retrying ..."
@@ -223,7 +233,7 @@ module Meeseeker
               # We need to tell steem-ruby to avoid json-rpc-batch on this
               # node.
               
-              Steem::BlockApi.const_set 'MAX_RANGE_SIZE', 1
+              Meeseeker.block_api_class(chain).const_set 'MAX_RANGE_SIZE', 1
               sleep Meeseeker::BLOCK_INTERVAL
               redo
             end

@@ -52,29 +52,35 @@ task :check_schema do
 end
 
 task(:sync, [:chain, :at_block_num] => [:check_schema]) do |t, args|
-  chain = (args[:chain] || 'steem').to_sym
+  chain = args[:chain] if args[:chain]
+  chain ||= Meeseeker.default_chain_key_prefix
   
-  job = case chain
-  when :steem
-    Meeseeker::BlockFollowerJob.new
+  job = case chain.to_sym
   when :steem_engine
     Meeseeker::SteemEngine::FollowerJob.new
-  else; abort("Unknown chain: #{chain}")
+  when :hive_engine
+    Meeseeker::HiveEngine::FollowerJob.new
+  else
+    Meeseeker::BlockFollowerJob.new
   end
   
-  job.perform(at_block_num: args[:at_block_num])
+  job.perform(chain: chain, at_block_num: args[:at_block_num])
 end
 
 namespace :witness do
-  desc 'Publish the witness schedule every minute or so (steem:witness:schedule).'
-  task :schedule do
+  desc 'Publish the witness schedule every minute or so (e.g.: hive:witness:schedule).'
+  task :schedule, [:chain] do |t, args|
+    chain = args[:chain] if args[:chain]
+    chain ||= Meeseeker.default_chain_key_prefix
+    
     job = Meeseeker::WitnessScheduleJob.new
-    job.perform
+    job.perform(chain: chain)
   end
 end
 
 task(:find, [:what, :key, :chain] => [:check_schema]) do |t, args|
-  chain = (args[:chain] || 'steem').downcase.to_sym
+  chain = args[:chain] if args[:chain]
+  chain ||= Meeseeker.default_chain_key_prefix
   redis = Meeseeker.redis
   
   match = case args[:what].downcase.to_sym
@@ -99,11 +105,15 @@ task :reset, [:chain] => [:check_schema] do |t, args|
   print 'Dropping keys for set: %s ...' % chain.to_s
   
   case chain
-  when :steem then keys += Meeseeker.redis.keys('steem:*')
   when :steem_engine then keys += Meeseeker.redis.keys('steem_engine:*')
+  when :hive_engine then keys += Meeseeker.redis.keys('hive_engine:*')
   when :all
     keys += Meeseeker.redis.keys('steem:*')
+    keys += Meeseeker.redis.keys('hive:*')
     keys += Meeseeker.redis.keys('steem_engine:*')
+    keys += Meeseeker.redis.keys('hive_engine:*')
+  else
+    keys += Meeseeker.redis.keys("#{chain}:*")
   end
   
   if keys.any?
@@ -117,10 +127,13 @@ end
 
 namespace :verify do
   desc 'Verifies transactions land where they should.'
-  task :block_org, [:max_blocks] do |t, args|
+  task :block_org, [:chain, :max_blocks] do |t, args|
+    chain = args[:chain] if args[:chain]
+    chain ||= Meeseeker.default_chain_key_prefix
+    chain_key_prefix = chain.to_s
     max_blocks = args[:max_blocks]
-    node_url = ENV.fetch('MEESEEKER_NODE_URL', 'https://api.steemit.com')
-    database_api = Steem::DatabaseApi.new(url: node_url)
+    node_url = Meeseeker.shuffle_node_url(chain)
+    database_api = Meeseeker.database_api_class(chain).new(url: node_url)
     mode = ENV.fetch('MEESEEKER_STREAM_MODE', 'head').to_sym
     until_block_num = if !!max_blocks
       database_api.get_dynamic_global_properties do |dgpo|
@@ -139,7 +152,7 @@ namespace :verify do
       
       loop do
         begin
-          job.perform(mode: mode, until_block_num: until_block_num)
+          job.perform(chain: chain, mode: mode, until_block_num: until_block_num)
         rescue => e
           puts e.inspect
           sleep 5
@@ -152,8 +165,8 @@ namespace :verify do
     end
     
     begin
-      block_api = Steem::BlockApi.new(url: node_url)
-      block_channel = 'steem:block'
+      block_api = Meeseeker.block_api_class(chain).new(url: node_url)
+      block_channel = "#{chain_key_prefix}:block"
       redis_url = ENV.fetch('MEESEEKER_REDIS_URL', 'redis://127.0.0.1:6379/0')
       subscription = Redis.new(url: redis_url)
       ctx = Redis.new(url: redis_url)
@@ -186,12 +199,19 @@ namespace :verify do
             end
           end
             
-          while ctx.keys("steem:#{next_block_num}:*").size == 0
+          5.times do
+            break unless ctx.keys("#{chain_key_prefix}:#{next_block_num}:*").size == 0
+            
             # This ensures at least the next block has been indexed before
             # proceeding.
             
-            puts "Waiting for block: #{next_block_num} ..."
+            puts "Waiting for block (verify:block_org): #{next_block_num} ..."
+            
             sleep 6
+          end
+          
+          if ctx.keys("#{chain_key_prefix}:#{next_block_num}:*").size == 0
+            puts "Gave up waiting for block (check current_aslot slippage): #{next_block_num}"
           end
           
           database_api.get_dynamic_global_properties do |dgpo|
@@ -207,7 +227,7 @@ namespace :verify do
           end
           
           # In theory, we should have all the keys using this pattern.
-          keys = ctx.keys("steem:#{block_num}:*")
+          keys = ctx.keys("#{chain_key_prefix}:#{block_num}:*")
           
           # If we have all the keys, we should also have all transaction ids.
           expected_ids = keys.map { |k| k.split(':')[2] }.uniq
@@ -252,18 +272,35 @@ namespace :verify do
     end
   end
   
+  desc 'Verifies Hive Engine transactions land where they should.'
+  task :hive_engine_block_org, [:max_blocks] do |t, args|
+    Rake::Task['verify:engine_block_org'].invoke('hive_engine', args[:max_blocks])
+  end
+  
   desc 'Verifies Steem Engine transactions land where they should.'
   task :steem_engine_block_org, [:max_blocks] do |t, args|
+    Rake::Task['verify:engine_block_org'].invoke('steem_engine', args[:max_blocks])
+  end
+  
+  desc 'Verifies Steem/Hive Engine transactions land where they should.'
+  task :engine_block_org, [:chain_key_prefix, :max_blocks] do |t, args|
+    chain_key_prefix = args[:chain_key_prefix]
     max_blocks = args[:max_blocks]
-    node_url = ENV.fetch('MEESEEKER_STEEM_ENGINE_NODE_URL', 'https://api.steem-engine.com/rpc')
-    agent = Meeseeker::SteemEngine::Agent.new(url: node_url)
+    case chain_key_prefix.to_sym
+    when :steem_engine
+      node_url = ENV.fetch('MEESEEKER_STEEM_ENGINE_NODE_URL', 'https://api.steem-engine.com/rpc')
+      agent = Meeseeker::SteemEngine::Agent.new(url: node_url)
+      job = Meeseeker::SteemEngine::FollowerJob.new
+    when :hive_engine
+      node_url = ENV.fetch('MEESEEKER_HIVE_ENGINE_NODE_URL', 'https://api.hive-engine.com/rpc')
+      agent = Meeseeker::HiveEngine::Agent.new(url: node_url)
+      job = Meeseeker::HiveEngine::FollowerJob.new
+    end
     until_block_num = if !!max_blocks
       agent.latest_block_info['blockNumber']
     end
     
     Thread.new do
-      job = Meeseeker::SteemEngine::FollowerJob.new
-      
       loop do
         begin
           at_block_num = agent.latest_block_info["blockNumber"] - max_blocks.to_i
@@ -281,7 +318,7 @@ namespace :verify do
     end
     
     begin
-      block_channel = 'steem_engine:block'
+      block_channel = "#{chain_key_prefix}:block"
       redis_url = ENV.fetch('MEESEEKER_REDIS_URL', 'redis://127.0.0.1:6379/0')
       subscription = Redis.new(url: redis_url)
       ctx = Redis.new(url: redis_url)
@@ -313,16 +350,16 @@ namespace :verify do
             end
           end
           
-          while ctx.keys("steem_engine:#{next_block_num}:*").size == 0
+          while ctx.keys("#{chain_key_prefix}:#{next_block_num}:*").size == 0
             # This ensures at least the next block has been indexed before
             # proceeding.
             
-            puts "Waiting for block: #{next_block_num} ..."
+            puts "Waiting for block (verify:#{chain_key_prefix}_engine_block_org): #{next_block_num} ..."
             sleep 6
           end
           
           # In theory, we should have all the keys using this pattern.
-          keys = ctx.keys("steem_engine:#{block_num}:*")
+          keys = ctx.keys("#{chain_key_prefix}:#{block_num}:*")
           
           # If we have all the keys, we should also have all transaction ids.
           expected_ids = keys.map { |k| k.split(':')[2] }.uniq
@@ -368,19 +405,40 @@ namespace :verify do
     agent.shutdown
   end
   
+  desc 'Verifies Hive Engine sidechain against the mainnet.'
+  task :hive_engine_ref_blocks do |t|
+    Rake::Task['verify:engine_ref_blocks'].invoke('hive_engine')
+  end
+  
   desc 'Verifies Steem Engine sidechain against the mainnet.'
   task :steem_engine_ref_blocks do |t|
+    Rake::Task['verify:engine_ref_blocks'].invoke('steem_engine')
+  end
+  
+  desc 'Verifies Steem/Hive Engine sidechain against the mainnet.'
+  task :engine_ref_blocks, [:chain_key_prefix] do |t, args|
+    chain_key_prefix = args[:chain_key_prefix]
     redis_url = ENV.fetch('MEESEEKER_REDIS_URL', 'redis://127.0.0.1:6379/0')
     ctx = ctx = Redis.new(url: redis_url)
-    keys = ctx.keys('steem_engine:*')
-    block_api = Steem::BlockApi.new
+    keys = ctx.keys("#{chain_key_prefix}:*:*")
+    mainchain, mainchain_url = case chain_key_prefix
+    when 'steem_engine' then ['steem', 'https://api.steemit.com']
+    when 'hive_engine' then ['hive', 'https://api.openhive.network']
+    end
+    block_api = Meeseeker.block_api_class(mainchain).new(url: mainchain_url)
     block_trxs = {}
     
-    puts "Checking Steem Engine keys: #{keys.size}"
+    puts "Checking #{chain_key_prefix} keys: #{keys.size}"
     
     keys.each do |key|
       transaction = JSON[ctx.get(key)]
-      block_num = transaction['refSteemBlockNumber']
+      
+      next if transaction.class == Integer
+      
+      block_num = case chain_key_prefix
+      when 'steem_engine' then transaction.fetch('refSteemBlockNumber')
+      when 'hive_engine' then transaction.fetch('refHiveBlockNumber')
+      end.to_i
       
       block_trxs[block_num] ||= []
       block_trxs[block_num] << transaction['transactionId'].to_s.split('-').first
@@ -389,6 +447,8 @@ namespace :verify do
     puts "Related mainnet blocks: #{block_trxs.keys.size}"
     
     skipped_blocks = []
+    
+    next if block_trxs.empty?
     
     block_api.get_blocks(block_range: block_trxs.keys) do |block, block_num|
       if block.nil? || block[:transaction_ids].nil?
@@ -399,24 +459,34 @@ namespace :verify do
       else
         print '.'
       end
-    
-      if (block.transaction_ids & block_trxs[block_num]).none?
+      
+      trx_ids = block_trxs[block_num] - [Meeseeker::VIRTUAL_TRX_ID]
+      
+      if trx_ids.any? && (block.transaction_ids & trx_ids).none?
         puts "\nNo intersection in #{block_num}!"
-        puts "Expected the following sidechain trx_ids: #{block_trxs[block_num].join(', ')}"
+        puts "Expected the following sidechain trx_ids: #{trx_ids.join(', ')}"
       end
     end
     
     puts "\nBlocks to retry: #{skipped_blocks.size}"
     
     skipped_blocks.each do |block_num|
+      block_found = false
+      
       block_api.get_block(block_num: block_num) do |result|
-        block = result.block
+        break unless !!result.block
         
-        if (block.transaction_ids & block_trxs[block_num]).none?
+        block = result.block
+        block_found = true
+        trx_ids = block_trxs[block_num] - [Meeseeker::VIRTUAL_TRX_ID]
+        
+        if trx_ids.any? && (block.transaction_ids & trx_ids).none?
           puts "No intersection in #{block_num}!"
-          puts "Expected the following sidechain trx_ids: #{block_trxs[block_num].join(', ')}"
+          puts "Expected the following sidechain trx_ids: #{trx_ids.join(', ')}"
         end
       end
+      
+      redo unless block_found
     end
     
     puts "Done."
@@ -424,10 +494,12 @@ namespace :verify do
     
   namespace :witness do
     desc 'Verifies witnessses in the schedule produced a block.'
-    task :schedule, [:max_blocks] do |t, args|
+    task :schedule, [:chain, :max_blocks] do |t, args|
+      chain = args[:chain] if !!args[:chain]
+      chain ||= Meeseeker.default_chain_key_prefix
       max_blocks = args[:max_blocks]
-      node_url = ENV.fetch('MEESEEKER_NODE_URL', 'https://api.steemit.com')
-      database_api = Steem::DatabaseApi.new(url: node_url)
+      node_url = Meeseeker.shuffle_node_url(chain)
+      database_api = Meeseeker.database_api_class(chain).new(url: node_url)
       mode = ENV.fetch('MEESEEKER_STREAM_MODE', 'head').to_sym
       until_block_num = if !!max_blocks
         database_api.get_dynamic_global_properties do |dgpo|
@@ -446,7 +518,7 @@ namespace :verify do
         
         loop do
           begin
-            job.perform(mode: mode, until_block_num: until_block_num)
+            job.perform(chain: chain, mode: mode, until_block_num: until_block_num)
           rescue => e
             puts e.inspect
             sleep 5
@@ -459,8 +531,10 @@ namespace :verify do
       end
     
       begin
-        block_api = Steem::BlockApi.new(url: node_url)
-        schedule_channel = 'steem:witness:schedule'
+        block_api = Meeseeker.block_api_class(chain).new(url: node_url)
+        chain_key_prefix = chain.to_s if args[:chain]
+        chain_key_prefix ||= Meeseeker.default_chain_key_prefix
+        schedule_channel = "#{chain_key_prefix}:witness:schedule"
         redis_url = ENV.fetch('MEESEEKER_REDIS_URL', 'redis://127.0.0.1:6379/0')
         subscription = Redis.new(url: redis_url)
         timeout = (max_blocks).to_i * 3
@@ -519,7 +593,10 @@ namespace :verify do
                   unless !!header
                     # Can happen when there's excess p2p latency and/or jussi
                     # cache is under load.
-                    puts "Waiting for block header: #{block_num}"
+                    puts "Waiting for block header (witness:schedule): #{block_num}"
+                    
+                    node_url = Meeseeker.shuffle_node_url(chain)
+                    block_api = Meeseeker.block_api_class(chain).new(url: node_url)
                     
                     next
                   end

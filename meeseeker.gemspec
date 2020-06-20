@@ -31,6 +31,7 @@ Gem::Specification.new do |s|
 
   s.add_dependency 'redis', '~> 4.1', '>= 4.1.0'
   s.add_dependency 'steem-ruby', '~> 0.9', '>= 0.9.4'
+  s.add_dependency 'hive-ruby', '~> 1.0.0.pre-1', '>= 1.0.0.pre-1'
   s.add_dependency 'mechanize', '~> 2.7', '>= 2.7.6'
   s.add_dependency 'rb-readline', '~> 0.5', '>= 0.5.5'
 end

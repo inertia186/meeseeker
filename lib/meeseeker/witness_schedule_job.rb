@@ -1,7 +1,11 @@
 module Meeseeker
   class WitnessScheduleJob
     def perform(options = {})
-      database_api = Steem::DatabaseApi.new(url: Meeseeker.node_url)
+      chain = (options[:chain] || 'hive').to_sym
+      chain_key_prefix = chain.to_s if !!options[:chain]
+      chain_key_prefix ||= Meeseeker.default_chain_key_prefix
+      url = Meeseeker.default_url(chain_key_prefix)
+      database_api = Meeseeker.database_api_class(chain_key_prefix).new(url: url)
       redis = Meeseeker.redis
       mode = options.delete(:mode) || Meeseeker.stream_mode
       schedule = nil
@@ -53,7 +57,7 @@ module Meeseeker
         
         if next_shuffle_block_num != last_shuffle_block_num
           puts "next_shuffle_block_num: #{next_shuffle_block_num}; current_shuffled_witnesses: #{schedule.current_shuffled_witnesses.join(', ')}"
-          redis.publish('steem:witness:schedule', schedule.to_json)
+          redis.publish("#{chain_key_prefix}:witness:schedule", schedule.to_json)
           last_shuffle_block_num = next_shuffle_block_num
         end
         

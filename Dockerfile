@@ -1,6 +1,7 @@
 FROM redis
 
 ENV APP_ROOT /meeseeker
+ENV MEESEEKER_MAX_KEYS 300000
 WORKDIR /meeseeker
 
 # Dependencies

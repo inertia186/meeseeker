@@ -26,30 +26,44 @@ module Meeseeker::SteemEngine
     end
 
     def latest_block_info
-      request_body = {
-        jsonrpc: "2.0",
-        method: :getLatestBlockInfo,
-        id: rpc_id
-      }.to_json
+      5.times do
+        request_body = {
+          jsonrpc: "2.0",
+          method: :getLatestBlockInfo,
+          id: rpc_id
+        }.to_json
+        
+        response = request_with_entity :post, blockchain_uri, request_body, POST_HEADERS
+        latest_block_info = JSON[response.body]["result"]
+        
+        return latest_block_info if !!latest_block_info
+        
+        sleep 3
+      end
       
-      response = request_with_entity :post, blockchain_uri, request_body, POST_HEADERS
-      
-      JSON[response.body]["result"]
+      return nil
     end
 
     def block(block_num)
-      request_body = {
-        jsonrpc: "2.0",
-        method: :getBlockInfo,
-        params: {
-          blockNumber: block_num
-        },
-        id: rpc_id
-      }.to_json
+      5.times do
+        request_body = {
+          jsonrpc: "2.0",
+          method: :getBlockInfo,
+          params: {
+            blockNumber: block_num.to_i
+          },
+          id: rpc_id
+        }.to_json
+        
+        response = request_with_entity :post, blockchain_uri, request_body, POST_HEADERS
+        block = JSON[response.body]["result"]
+        
+        return block if !!block
+        
+        sleep 3
+      end
       
-      response = request_with_entity :post, blockchain_uri, request_body, POST_HEADERS
-      
-      JSON[response.body]["result"]
+      return nil
     end
   private
     def rpc_id
