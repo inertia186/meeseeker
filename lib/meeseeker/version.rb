@@ -1,4 +1,4 @@
 module Meeseeker
-  VERSION = '2.0.0-1'
+  VERSION = '2.0.0'
   AGENT_ID = "meeseeker/#{VERSION}"
 end
