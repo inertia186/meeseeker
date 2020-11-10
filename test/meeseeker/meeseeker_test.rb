@@ -153,6 +153,8 @@ module Meeseeker
       agent = Meeseeker::SteemEngine::Agent.new
       keys = Meeseeker.redis.keys('steem_engine:*')
       data = keys.map do |key|
+        next if key == 'steem:meeseeker:last_block_num'
+        
         n, b, t, i, o = key.split(':')
         
         assert_equal chain, n, "expected steem_engine key, got: #{key}"
@@ -165,11 +167,13 @@ module Meeseeker
       assert data.any?, 'expect steem_engine data'
       
       data.each do |b, t|
+        next if t == 'last_block_num'
+        
         block = agent.block(b)
         refute_nil block, "did not expect nil block (#{b})"
         
         count = block['transactions'].select do |trx|
-          trx['transactionId'].include? t
+          trx['transactionId'].to_s.include? t
         end.size
         
         assert count > 0, "Could not find steem_engine trx_id (#{t}) in block (#{b})."
