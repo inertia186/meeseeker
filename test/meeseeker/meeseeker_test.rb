@@ -39,6 +39,8 @@ module Meeseeker
         
         assert_equal 'hive', n, "expected hive key, got: #{key}"
         
+        next if t == Meeseeker::VIRTUAL_TRX_ID
+        
         [b, t]
       end.compact.sample(10).to_h
       
@@ -97,6 +99,8 @@ module Meeseeker
         n, b, t, i, o = key.split(':')
         
         assert_equal 'steem', n, "expected steem key, got: #{key}"
+        
+        next if t == Meeseeker::VIRTUAL_TRX_ID
         
         [b, t]
       end.compact.sample(10).to_h

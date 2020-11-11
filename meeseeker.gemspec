@@ -30,8 +30,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'mock_redis', '~> 0.22', '>= 0.22.0'
 
   s.add_dependency 'redis', '~> 4.1', '>= 4.1.0'
-  s.add_dependency 'steem-ruby', '~> 0.9', '>= 0.9.4'
-  s.add_dependency 'hive-ruby', '~> 1.0.0', '>= 1.0.0'
+  s.add_dependency 'radiator', '~> 0.4', '>= 0.4.8'
   s.add_dependency 'mechanize', '~> 2.7', '>= 2.7.6'
   s.add_dependency 'rb-readline', '~> 0.5', '>= 0.5.5'
 end

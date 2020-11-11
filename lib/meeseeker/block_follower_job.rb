@@ -1,3 +1,5 @@
+require 'radiator'
+
 module Meeseeker
   class BlockFollowerJob
     MAX_VOP_RETRY = 3
@@ -140,11 +142,11 @@ module Meeseeker
       
       begin
         url = Meeseeker.default_url(chain)
-        stream_options = {url: url, mode: mode}
-        options = options.merge(at_block_num: last_block_num)
+        stream_options = {chain: chain, url: url}
+        stream_args = [last_block_num, mode]
         condenser_api = nil
         
-        Meeseeker.stream_class.new(stream_options).tap do |stream|
+        Radiator::Stream.new(stream_options).tap do |stream|
           puts "Stream begin: #{stream_options.to_json}; #{options.to_json}"
           
           # Prior to v0.0.4, we only streamed operations with stream.operations.
@@ -155,14 +157,14 @@ module Meeseeker
           
           loop do
             begin
-              stream.blocks(options) do |b, n|
+              stream.blocks(*stream_args) do |b, n, condenser_api|
                 redo if b.nil?
                 
                 b.transactions.each_with_index do |transaction, index|
                   transaction.operations.each do |op|
-                    op = op.merge(timestamp: b.timestamp)
+                    op_value = op[1].merge(timestamp: b.timestamp)
                     
-                    yield op, b.transaction_ids[index], n
+                    yield Hashie::Mash.new(type: op[0], value: op_value), b.transaction_ids[index], n
                   end
                 end
                 
