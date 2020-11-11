@@ -51,6 +51,7 @@ task :check_schema do
   end
 end
 
+desc 'Begin/resume sync.'
 task(:sync, [:chain, :at_block_num] => [:check_schema]) do |t, args|
   chain = args[:chain] if args[:chain]
   chain ||= Meeseeker.default_chain_key_prefix
@@ -78,6 +79,7 @@ namespace :witness do
   end
 end
 
+desc 'Find block or transaction.'
 task(:find, [:what, :key, :chain] => [:check_schema]) do |t, args|
   chain = args[:chain] if args[:chain]
   chain ||= Meeseeker.default_chain_key_prefix
@@ -98,6 +100,7 @@ task(:find, [:what, :key, :chain] => [:check_schema]) do |t, args|
   end
 end
 
+desc 'Clear all keys.'
 task :reset, [:chain] => [:check_schema] do |t, args|
   chain = (args[:chain] || 'all').to_sym
   keys = []
