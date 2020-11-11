@@ -32,7 +32,7 @@ when 'sync', 'witness:schedule'
     Rake::Task['sync'].reenable
   end; end
 when 'find' then Rake::Task['find'].invoke(*ARGV[1..-1])
-when 'reset' then Rake::Task['reset'].invoke
+when 'reset' then Rake::Task['reset'].invoke(*ARGV[1..-1])
 else
   puts "\nBegin/resume sync:"
   puts "\t#{filename} sync [chain] [block_num]\n\n"
@@ -44,7 +44,7 @@ else
   puts "\t#{filename} find block 3044538"
   puts "\t#{filename} find trx 983c5e5c6aef52f1647d952a18771f76b885e6de\n\n"
   puts 'Clear all keys:'
-  puts "\t#{filename} reset\n\n"
+  puts "\t#{filename} reset [chain]\n\n"
   puts "Note, using find and reset is not intended for routine operations.  It is intended for analysis only."
   puts "See: https://github.com/inertia186/meeseeker#usage"
 end
