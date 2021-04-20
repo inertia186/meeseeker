@@ -90,7 +90,7 @@ module Meeseeker
   
   @redis = Redis.new(url: ENV.fetch('MEESEEKER_REDIS_URL', 'redis://127.0.0.1:6379/0'))
   @node_url = default_url(ENV.fetch('MEESEEKER_CHAIN_KEY_PREFIX', HIVE_CHAIN_KEY_PREFIX))
-  @steem_engine_node_url = ENV.fetch('MEESEEKER_STEEM_ENGINE_NODE_URL', 'https://api.steem-engine.com/rpc')
+  @steem_engine_node_url = ENV.fetch('MEESEEKER_STEEM_ENGINE_NODE_URL', 'https://api.steem-engine.net/rpc')
   @hive_engine_node_url = ENV.fetch('MEESEEKER_HIVE_ENGINE_NODE_URL', 'https://api.hive-engine.com/rpc')
   @stream_mode = ENV.fetch('MEESEEKER_STREAM_MODE', 'head').downcase.to_sym
   @include_virtual = ENV.fetch('MEESEEKER_INCLUDE_VIRTUAL', 'true').downcase == 'true'
