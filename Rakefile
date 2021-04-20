@@ -291,7 +291,7 @@ namespace :verify do
     max_blocks = args[:max_blocks]
     case chain_key_prefix.to_sym
     when :steem_engine
-      node_url = ENV.fetch('MEESEEKER_STEEM_ENGINE_NODE_URL', 'https://api.steem-engine.com/rpc')
+      node_url = ENV.fetch('MEESEEKER_STEEM_ENGINE_NODE_URL', 'https://api.steem-engine.net/rpc')
       agent = Meeseeker::SteemEngine::Agent.new(url: node_url)
       job = Meeseeker::SteemEngine::FollowerJob.new
     when :hive_engine
